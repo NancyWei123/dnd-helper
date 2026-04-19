@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { register } from "@/Api/user";
 
 const router = useRouter()
 const loading = ref(false)
@@ -13,7 +14,7 @@ const form = reactive({
   confirmPassword: ''
 })
 
-const register = async () => {
+const handleRegister = async () => {
   if (!form.username || !form.email || !form.password) {
     ElMessage.warning('Please fill in all fields')
     return
@@ -27,23 +28,18 @@ const register = async () => {
   loading.value = true
 
   try {
-    const response = await fetch('http://localhost:8000/api/register/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        username: form.username,
-        email: form.email,
-        password: form.password
-      })
+    const response = await register({
+      username: form.username,
+      email: form.email,
+      password: form.password
     })
-
+    
     if (!response.ok) {
       throw new Error('Register failed')
     }
 
     ElMessage.success('Account created successfully')
+    localStorage.setItem("token", response.token);
     router.push('/login')
   } catch (error) {
     ElMessage.error('Register failed. Please try again.')
@@ -105,7 +101,7 @@ const register = async () => {
         <el-button
           class="fantasy-button primary"
           :loading="loading"
-          @click="register"
+          @click="handleRegister"
         >
           Create Account
         </el-button>

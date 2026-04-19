@@ -1,179 +1,291 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
+import { ElMessage } from 'element-plus'
+import {
+  getChaptersByBook,
+  getChapterById,
+  type ChapterResponse
+} from '@/Api/chapter'
 
-const markdownContent = ref(`
-# My First Book
+const route = useRoute()
 
-This is a book written in **Markdown**.
+const bookId = route.params.bookId as string
 
-## Chapter 1
+const loading = ref(false)
+const chapters = ref<ChapterResponse[]>([])
+const currentChapter = ref<ChapterResponse | null>(null)
 
-Here is an image:
+const markdownContent = ref('')
 
-![Book Cover](/book-cover.png)
+const loadChapters = async () => {
+  loading.value = true
 
-## Another image from internet
+  try {
+    chapters.value = await getChaptersByBook(bookId)
 
-![Vue Logo](https://vuejs.org/images/logo.png)
+    if (chapters.value.length > 0) {
+      await selectChapter(chapters.value[0])
+    }
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load chapters')
+  } finally {
+    loading.value = false
+  }
+}
 
-> This is a quote in Markdown.
-`)
+const selectChapter = async (chapter: ChapterResponse) => {
+  try {
+    const chapterDetail = await getChapterById(bookId, chapter.id)
+
+    currentChapter.value = chapterDetail
+
+    markdownContent.value = chapterDetail.contentMd || 'No content yet.'
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load chapter')
+  }
+}
+
+onMounted(() => {
+  loadChapters()
+})
 </script>
 
 <template>
-  <div class="page">
-    <div class="book-shell">
-      <div class="book-header">
-        <p class="eyebrow">Published Tome</p>
-        <h1>Published Book</h1>
-        <p class="subtitle">
-          Read the scrolls of this adventure, written in Markdown and released to the realm.
-        </p>
+  <div class="editor-page">
+    <aside class="chapter-sidebar">
+      <div class="sidebar-header">
+        <p class="eyebrow">Scrolls</p>
+        <h2>Chapters</h2>
       </div>
 
-      <div class="markdown-card">
+      <div v-if="loading" class="sidebar-loading">
+        Loading chapters...
+      </div>
+
+      <div v-else-if="chapters.length === 0" class="sidebar-empty">
+        No chapters yet.
+      </div>
+
+      <div v-else class="chapter-list">
+        <button
+          v-for="chapter in chapters"
+          :key="chapter.id"
+          class="chapter-item"
+          :class="{ active: currentChapter?.id === chapter.id }"
+          @click="selectChapter(chapter)"
+        >
+          <span class="chapter-icon">📜</span>
+          <span>{{ chapter.title }}</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="editor-main">
+      <header class="editor-header">
+        <div>
+          <p class="eyebrow">Scriptorium</p>
+          <h1>{{ currentChapter?.title || 'Select a Chapter' }}</h1>
+        </div>
+      </header>
+
+      <section class="editor-card">
+        <div v-if="!currentChapter" class="empty-content">
+          Select a chapter to read.
+        </div>
+
         <MdPreview
-          editor-id="preview-only"
+          v-else
+          editor-id="chapter-preview"
           :model-value="markdownContent"
           preview-theme="github"
+          code-theme="github"
         />
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 </template>
 
 <style scoped>
-.page {
+.editor-page {
   min-height: 100vh;
-  padding: 56px 24px;
+  display: grid;
+  grid-template-columns: 290px 1fr;
   color: #f8ead0;
   background:
-    radial-gradient(circle at 50% 20%, rgba(214, 168, 79, 0.18), transparent 28%),
-    radial-gradient(circle at 15% 15%, rgba(127, 29, 29, 0.25), transparent 32%),
+    radial-gradient(circle at 60% 20%, rgba(214, 168, 79, 0.16), transparent 30%),
+    radial-gradient(circle at 12% 18%, rgba(127, 29, 29, 0.24), transparent 34%),
     linear-gradient(135deg, #0f0a07, #1c1410 50%, #090605);
 }
 
-.book-shell {
-  width: min(980px, 94vw);
-  margin: 0 auto;
+.chapter-sidebar {
+  padding: 28px;
+  border-right: 1px solid rgba(214, 168, 79, 0.28);
+  background: rgba(15, 10, 7, 0.72);
+  box-shadow: 16px 0 50px rgba(0, 0, 0, 0.28);
 }
 
-.book-header {
-  margin-bottom: 28px;
-  padding: 38px 42px;
-  text-align: center;
-  border-radius: 28px;
-  border: 1px solid rgba(214, 168, 79, 0.42);
-  background: rgba(42, 28, 22, 0.88);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.45),
-    inset 0 0 36px rgba(214, 168, 79, 0.05);
-}
-
-.book-header::before {
-  content: "📖";
-  display: block;
-  margin-bottom: 12px;
-  font-size: 42px;
+.sidebar-header {
+  margin-bottom: 24px;
 }
 
 .eyebrow {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: #d6a84f;
   font-size: 12px;
   letter-spacing: 4px;
   text-transform: uppercase;
 }
 
-h1 {
+h1,
+h2 {
   margin: 0;
   color: #f3e2b8;
-  font-size: clamp(42px, 6vw, 76px);
-  line-height: 1;
-  text-shadow:
-    0 4px 0 #5c3518,
-    0 12px 30px rgba(0, 0, 0, 0.6);
+  font-family: Georgia, "Times New Roman", serif;
 }
 
-.subtitle {
-  max-width: 620px;
-  margin: 22px auto 0;
+h1 {
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 1.1;
+  text-shadow: 0 4px 0 #5c3518;
+}
+
+h2 {
+  font-size: 32px;
+}
+
+.sidebar-loading,
+.sidebar-empty {
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 168, 79, 0.25);
+  background: rgba(42, 28, 22, 0.68);
   color: #c9b28c;
-  font-size: 17px;
-  line-height: 1.7;
 }
 
-.markdown-card {
-  padding: 42px;
-  border-radius: 28px;
-  border: 1px solid rgba(214, 168, 79, 0.38);
-  background:
-    linear-gradient(rgba(243, 226, 184, 0.94), rgba(238, 213, 160, 0.95));
-  box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.5),
-    inset 0 0 60px rgba(92, 53, 24, 0.12);
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* Style markdown preview inside md-editor-v3 */
+.chapter-item {
+  width: 100%;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 168, 79, 0.2);
+  background: rgba(42, 28, 22, 0.68);
+  color: #c9b28c;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chapter-item:hover,
+.chapter-item.active {
+  color: #f3e2b8;
+  border-color: rgba(214, 168, 79, 0.65);
+  background: rgba(92, 53, 24, 0.72);
+  transform: translateX(4px);
+}
+
+.chapter-icon {
+  font-size: 20px;
+}
+
+.editor-main {
+  padding: 34px;
+  overflow: hidden;
+}
+
+.editor-header {
+  margin-bottom: 24px;
+  padding: 28px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  border-radius: 26px;
+  border: 1px solid rgba(214, 168, 79, 0.36);
+  background: rgba(42, 28, 22, 0.88);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.editor-card {
+  height: calc(100vh - 190px);
+  overflow-y: auto;
+  padding: 36px 48px;
+  border-radius: 26px;
+  border: 1px solid rgba(214, 168, 79, 0.36);
+  background: #fffaf0;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
+}
+
+.empty-content {
+  color: #2a1c16;
+  font-size: 22px;
+  font-weight: 700;
+}
+
 :deep(.md-editor-preview-wrapper) {
   padding: 0;
-  background: transparent;
 }
 
 :deep(.md-editor-preview) {
   color: #2a1c16;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.8;
-  background: transparent;
 }
 
 :deep(.md-editor-preview h1),
 :deep(.md-editor-preview h2),
 :deep(.md-editor-preview h3) {
-  color: #5c3518;
   font-family: Georgia, "Times New Roman", serif;
+  color: #2a1c16;
 }
 
 :deep(.md-editor-preview h1) {
+  font-size: 46px;
+  border-bottom: 1px solid #e5d8bc;
   padding-bottom: 14px;
-  border-bottom: 2px solid rgba(92, 53, 24, 0.25);
-  font-size: 42px;
-}
-
-:deep(.md-editor-preview h2) {
-  margin-top: 36px;
-  font-size: 30px;
 }
 
 :deep(.md-editor-preview blockquote) {
-  margin: 24px 0;
-  padding: 16px 22px;
+  border-left: 4px solid #d6a84f;
+  background: #f7edd7;
   color: #5c3518;
-  border-left: 5px solid #d6a84f;
-  background: rgba(214, 168, 79, 0.16);
-  border-radius: 12px;
 }
 
 :deep(.md-editor-preview img) {
-  display: block;
   max-width: 100%;
-  margin: 24px auto;
-  border-radius: 18px;
-  border: 1px solid rgba(92, 53, 24, 0.28);
-  box-shadow: 0 16px 36px rgba(42, 28, 22, 0.25);
+  border-radius: 16px;
 }
 
-@media (max-width: 640px) {
-  .page {
-    padding: 32px 16px;
+@media (max-width: 900px) {
+  .editor-page {
+    grid-template-columns: 1fr;
   }
 
-  .book-header,
-  .markdown-card {
-    padding: 28px 22px;
-    border-radius: 22px;
+  .chapter-sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(214, 168, 79, 0.28);
+  }
+
+  .editor-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .editor-card {
+    height: 70vh;
+    padding: 24px;
   }
 }
 </style>

@@ -1,62 +1,52 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
+import { getAllBooks, type BookResponse } from "@/Api/book";
 
-type BookStatus = 'DRAFT' | 'PUBLISHED'
+type BookStatus = "DRAFT" | "PUBLISHED";
 
-interface Book {
-  id: number
-  title: string
-  description: string
-  coverUrl: string
-  status: BookStatus
-  updatedAt: string
+interface Book extends BookResponse {
+  status: BookStatus;
 }
 
-const router = useRouter()
+const router = useRouter();
 
-const books = ref<Book[]>([
-  {
-    id: 1,
-    title: 'The Dragon of Moonfall Keep',
-    description: 'A dark fantasy campaign about lost kingdoms, ancient magic, and a forgotten dragon oath.',
-    coverUrl: '/book-cover.png',
-    status: 'PUBLISHED',
-    updatedAt: '2026-04-19'
-  },
-  {
-    id: 2,
-    title: 'Chronicles of the Silver Guild',
-    description: 'A collection of adventurer notes, tavern stories, and unfinished campaign chapters.',
-    coverUrl: '',
-    status: 'DRAFT',
-    updatedAt: '2026-04-18'
-  },
-  {
-    id: 3,
-    title: 'The Wizard’s Broken Map',
-    description: 'A mystery adventure written in Markdown with maps, images, and chapter notes.',
-    coverUrl: '',
-    status: 'PUBLISHED',
-    updatedAt: '2026-04-15'
+const books = ref<Book[]>([]);
+const loading = ref(false);
+
+const loadBooks = async () => {
+  loading.value = true;
+
+  try {
+    books.value = await getAllBooks() as Book[];
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("Failed to load books");
+  } finally {
+    loading.value = false;
   }
-])
+};
+
+onMounted(() => {
+  loadBooks();
+});
 
 const openBook = (book: Book) => {
-  if (book.status === 'PUBLISHED') {
-    router.push(`/books`)
+  if (book.status === "PUBLISHED") {
+    router.push(`/books/${book.id}/read`);
   } else {
-    router.push(`/books/${book.id}/edit`)
+    router.push(`/books/${book.id}/edit`);
   }
-}
+};
 
 const editBook = (book: Book) => {
-  router.push(`/books/${book.id}/edit`)
-}
+  router.push(`/books/${book.id}/edit`);
+};
 
 const createBook = () => {
-  router.push('/books/new')
-}
+  router.push("/books/new");
+};
 </script>
 
 <template>
@@ -75,13 +65,21 @@ const createBook = () => {
       </el-button>
     </div>
 
-    <div class="books-grid">
+    <div v-if="loading" class="state-card">
+      Loading books...
+    </div>
+
+    <div v-else-if="books.length === 0" class="state-card">
+      No books yet. Create your first spellbook.
+    </div>
+
+    <div v-else class="books-grid">
       <div
         v-for="book in books"
         :key="book.id"
         class="book-card"
       >
-        <div class="book-cover">
+        <div class="book-cover" @click="openBook(book)">
           <img
             v-if="book.coverUrl"
             :src="book.coverUrl"
@@ -99,18 +97,20 @@ const createBook = () => {
               {{ book.status }}
             </el-tag>
 
-            <span class="date">Updated {{ book.updatedAt }}</span>
+            <span class="date">
+              Updated {{ book.updatedAt?.slice(0, 10) }}
+            </span>
           </div>
 
           <h2>{{ book.title }}</h2>
 
           <p class="description">
-            {{ book.description }}
+            {{ book.description || "No description yet." }}
           </p>
 
           <div class="book-actions">
             <el-button class="fantasy-button small" @click="openBook(book)">
-              {{ book.status === 'PUBLISHED' ? 'Read Tome' : 'Continue Writing' }}
+              {{ book.status === "PUBLISHED" ? "Read Tome" : "Continue Writing" }}
             </el-button>
 
             <el-button class="fantasy-button small secondary" @click="editBook(book)">
@@ -172,6 +172,19 @@ h1 {
   line-height: 1.7;
 }
 
+.state-card {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 40px;
+  text-align: center;
+  border-radius: 24px;
+  border: 1px solid rgba(214, 168, 79, 0.35);
+  background: rgba(42, 28, 22, 0.88);
+  color: #d8bd84;
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .books-grid {
   width: min(1180px, 100%);
   margin: 0 auto;
@@ -208,6 +221,7 @@ h1 {
     linear-gradient(135deg, #5c3518, #1c1410);
   color: #d6a84f;
   font-size: 64px;
+  cursor: pointer;
 }
 
 .book-cover img {

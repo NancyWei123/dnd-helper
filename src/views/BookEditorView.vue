@@ -1,58 +1,90 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ElMessage } from 'element-plus'
+import {
+  getChaptersByBook,
+  getChapterById,
+  createChapter,
+  updateChapter,
+  type ChapterResponse
+} from '@/Api/chapter'
 
 const route = useRoute()
 const router = useRouter()
 
-const bookId = route.params.bookId
+// Must match your route path: /books/:bookId/edit
+const bookId = String(route.params.bookId || '')
 
-const currentChapter = ref('Chapter 1: The First Quest')
+const loading = ref(false)
 const saving = ref(false)
 
-const chapters = ref([
-  {
-    id: 1,
-    title: 'Chapter 1: The First Quest'
-  },
-  {
-    id: 2,
-    title: 'Chapter 2: The Lost Map'
-  },
-  {
-    id: 3,
-    title: 'Chapter 3: The Dragon Gate'
+const chapters = ref<ChapterResponse[]>([])
+const currentChapter = ref<ChapterResponse | null>(null)
+const markdownContent = ref('')
+
+// true means this chapter is only in frontend, not saved to backend yet
+const isNewChapter = ref(false)
+
+const loadChapters = async () => {
+  if (!bookId) {
+    ElMessage.error('Book id is missing from URL')
+    return
   }
-])
 
-const markdownContent = ref(`# Chapter 1: The First Quest
+  loading.value = true
 
-The rain fell softly outside the old tavern.
+  try {
+    chapters.value = await getChaptersByBook(bookId)
 
-A young adventurer opened a worn leather journal and began to write.
+    if (chapters.value.length > 0) {
+      await selectChapter(chapters.value[0])
+    } else {
+      addNewChapter()
+    }
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load chapters')
+  } finally {
+    loading.value = false
+  }
+}
 
-## Scene 1
+const selectChapter = async (chapter: ChapterResponse) => {
+  // If user is editing a new unsaved chapter, warn them before switching
+  if (isNewChapter.value) {
+    ElMessage.warning('Please save the new chapter first')
+    return
+  }
 
-The candlelight moved like tiny golden spirits on the wooden table.
+  try {
+    const detail = await getChapterById(bookId, chapter.id)
 
-![Book Cover](/book-cover.png)
+    currentChapter.value = detail
+    markdownContent.value = detail.contentMd || ''
+    isNewChapter.value = false
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load chapter')
+  }
+}
 
-> Every great adventure begins with a single written word.
+const addNewChapter = () => {
+  const nextOrder = chapters.value.length + 1
 
-## Notes
+  currentChapter.value = {
+    id: 0,
+    bookId: Number(bookId),
+    title: `Chapter ${nextOrder}: New Chapter`,
+    contentMd: '',
+    chapterOrder: nextOrder,
+    createdAt: '',
+    updatedAt: ''
+  }
 
-- Main character enters the tavern
-- Introduce the mysterious map
-- Add dialogue with the old wizard
-`)
-
-const selectChapter = (chapter: { id: number; title: string }) => {
-  currentChapter.value = chapter.title
-
-  markdownContent.value = `# ${chapter.title}
+  markdownContent.value = `# Chapter ${nextOrder}: New Chapter
 
 Start writing your adventure here...
 
@@ -60,27 +92,57 @@ Start writing your adventure here...
 
 Describe the scene in Markdown.
 
-![Book Cover](/book-cover.png)
-
 > Add a quote or important lore here.
 `
+
+  isNewChapter.value = true
 }
 
 const saveChapter = async () => {
+  if (!currentChapter.value) {
+    ElMessage.warning('Please select a chapter first')
+    return
+  }
+
+  if (!currentChapter.value.title.trim()) {
+    ElMessage.warning('Please enter a chapter title')
+    return
+  }
+
   saving.value = true
 
   try {
-    // Later you can send this to Django/Spring Boot backend
-    // await fetch(`http://localhost:8000/api/chapters/${chapterId}/`, {
-    //   method: 'PUT',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ content_md: markdownContent.value })
-    // })
+    if (isNewChapter.value) {
+      const created = await createChapter(bookId, {
+        title: currentChapter.value.title,
+        contentMd: markdownContent.value,
+        chapterOrder: currentChapter.value.chapterOrder
+      })
 
-    console.log('Saving markdown:', markdownContent.value)
+      chapters.value.push(created)
+      currentChapter.value = created
+      markdownContent.value = created.contentMd || markdownContent.value
+      isNewChapter.value = false
 
-    ElMessage.success('Chapter saved')
+      ElMessage.success('New chapter created')
+    } else {
+      const updated = await updateChapter(bookId, currentChapter.value.id, {
+        title: currentChapter.value.title,
+        contentMd: markdownContent.value,
+        chapterOrder: currentChapter.value.chapterOrder
+      })
+
+      currentChapter.value = updated
+      markdownContent.value = updated.contentMd || markdownContent.value
+
+      chapters.value = chapters.value.map((chapter) =>
+        chapter.id === updated.id ? updated : chapter
+      )
+
+      ElMessage.success('Chapter saved')
+    }
   } catch (error) {
+    console.error(error)
     ElMessage.error('Save failed')
   } finally {
     saving.value = false
@@ -89,8 +151,12 @@ const saveChapter = async () => {
 
 const publishBook = () => {
   ElMessage.success('Book published to the realm')
-  router.push(`/read/${bookId}`)
+  router.push(`/books/${bookId}/read`)
 }
+
+onMounted(() => {
+  loadChapters()
+})
 </script>
 
 <template>
@@ -101,12 +167,28 @@ const publishBook = () => {
         <h2>Chapters</h2>
       </div>
 
-      <div class="chapter-list">
+      <div v-if="loading" class="sidebar-state">
+        Loading chapters...
+      </div>
+
+      <div v-else-if="chapters.length === 0 && !currentChapter" class="sidebar-state">
+        No chapters yet.
+      </div>
+
+      <div v-else class="chapter-list">
+        <button
+          v-if="isNewChapter && currentChapter"
+          class="chapter-item active"
+        >
+          <span class="chapter-icon">✨</span>
+          <span>{{ currentChapter.title }}</span>
+        </button>
+
         <button
           v-for="chapter in chapters"
           :key="chapter.id"
           class="chapter-item"
-          :class="{ active: currentChapter === chapter.title }"
+          :class="{ active: currentChapter?.id === chapter.id && !isNewChapter }"
           @click="selectChapter(chapter)"
         >
           <span class="chapter-icon">📜</span>
@@ -114,21 +196,36 @@ const publishBook = () => {
         </button>
       </div>
 
-      <el-button class="sidebar-button">
+      <el-button class="sidebar-button" @click="addNewChapter">
         + New Chapter
       </el-button>
     </aside>
 
     <main class="editor-main">
       <header class="editor-header">
-        <div>
-          <p class="eyebrow">Scriptorium</p>
-          <h1>{{ currentChapter }}</h1>
+        <div class="chapter-title-box">
+          <p class="eyebrow">
+            {{ isNewChapter ? 'New Scroll' : 'Scriptorium' }}
+          </p>
+
+          <el-input
+            v-if="currentChapter"
+            v-model="currentChapter.title"
+            class="chapter-title-input"
+            placeholder="Chapter title"
+          />
+
+          <h1 v-else>Select a Chapter</h1>
         </div>
 
         <div class="header-actions">
-          <el-button class="fantasy-button secondary" :loading="saving" @click="saveChapter">
-            Save Draft
+          <el-button
+            class="fantasy-button secondary"
+            :loading="saving"
+            :disabled="!currentChapter"
+            @click="saveChapter"
+          >
+            {{ isNewChapter ? 'Create Chapter' : 'Save Chapter' }}
           </el-button>
 
           <el-button class="fantasy-button primary" @click="publishBook">
@@ -138,7 +235,12 @@ const publishBook = () => {
       </header>
 
       <section class="editor-card">
+        <div v-if="!currentChapter" class="empty-editor">
+          Select a chapter to start editing.
+        </div>
+
         <MdEditor
+          v-else
           v-model="markdownContent"
           language="en-US"
           preview-theme="github"
@@ -197,6 +299,14 @@ h2 {
   font-size: 32px;
 }
 
+.sidebar-state {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 168, 79, 0.24);
+  background: rgba(42, 28, 22, 0.68);
+  color: #c9b28c;
+}
+
 .chapter-list {
   display: flex;
   flex-direction: column;
@@ -239,6 +349,11 @@ h2 {
   color: #f3e2b8;
 }
 
+.sidebar-button:hover {
+  background: rgba(214, 168, 79, 0.12);
+  color: #f8ead0;
+}
+
 .editor-main {
   padding: 34px;
   overflow: hidden;
@@ -255,6 +370,30 @@ h2 {
   border: 1px solid rgba(214, 168, 79, 0.36);
   background: rgba(42, 28, 22, 0.88);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.chapter-title-box {
+  flex: 1;
+}
+
+.chapter-title-input {
+  max-width: 680px;
+}
+
+:deep(.chapter-title-input .el-input__wrapper) {
+  min-height: 58px;
+  border-radius: 18px;
+  background: rgba(255, 247, 226, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(214, 168, 79, 0.45),
+    inset 0 2px 5px rgba(64, 35, 12, 0.08);
+}
+
+:deep(.chapter-title-input .el-input__inner) {
+  color: #2a1c16;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 800;
 }
 
 .header-actions {
@@ -275,10 +414,20 @@ h2 {
   color: #1c1410;
 }
 
+.primary:hover {
+  background: linear-gradient(135deg, #efc76d, #a86f24);
+  color: #1c1410;
+}
+
 .secondary {
   border: 1px solid rgba(214, 168, 79, 0.65);
   background: rgba(15, 10, 7, 0.45);
   color: #f3e2b8;
+}
+
+.secondary:hover {
+  background: rgba(214, 168, 79, 0.14);
+  color: #f8ead0;
 }
 
 .editor-card {
@@ -288,6 +437,16 @@ h2 {
   border: 1px solid rgba(214, 168, 79, 0.36);
   background: #f3e2b8;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
+}
+
+.empty-editor {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2a1c16;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 :deep(.md-editor) {
@@ -321,6 +480,10 @@ h2 {
   .editor-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
   }
 
   .editor-card {
