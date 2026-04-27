@@ -1,24 +1,60 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import BookPermissionControl from '@/views/BookPermissionControl.vue'
 
 const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
 
+const users = ref([])
+const selectedReaderIds = ref([])
+
 const form = reactive({
   title: '',
   description: '',
   coverUrl: '',
-  status: 'DRAFT'
+  status: 'DRAFT',
+  permission: 'private'
 })
 
 const rules = {
   title: [
     { required: true, message: 'Please enter book title', trigger: 'blur' }
   ]
+}
+
+onMounted(() => {
+  fetchUsers()
+})
+
+const fetchUsers = async () => {
+  const token = localStorage.getItem('token')
+
+  if (!token) {
+    return
+  }
+
+  try {
+    const response = await fetch('http://localhost:8080/api/users/all', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(message || 'Failed to load users')
+    }
+
+    users.value = await response.json()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error.message)
+  }
 }
 
 const beforeCoverUpload = (file) => {
@@ -52,6 +88,27 @@ const removeCover = () => {
   form.coverUrl = ''
 }
 
+const saveBookReaders = async (bookId, token) => {
+  const response = await fetch(
+    `http://localhost:8080/api/books/${bookId}/readers`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        userIds: selectedReaderIds.value
+      })
+    }
+  )
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(message || 'Book created, but failed to save readers')
+  }
+}
+
 const createBook = async () => {
   await formRef.value.validate()
 
@@ -60,6 +117,11 @@ const createBook = async () => {
   if (!token) {
     ElMessage.error('Please login first')
     router.push('/login')
+    return
+  }
+
+  if (form.permission === 'protected' && selectedReaderIds.value.length === 0) {
+    ElMessage.error('Please select at least one reader')
     return
   }
 
@@ -72,12 +134,24 @@ const createBook = async () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify(form)
+      body: JSON.stringify({
+        title: form.title,
+        description: form.description,
+        coverUrl: form.coverUrl,
+        status: form.status,
+        permission: form.permission
+      })
     })
 
     if (!response.ok) {
       const message = await response.text()
       throw new Error(message || 'Failed to create book')
+    }
+
+    const savedBook = await response.json()
+
+    if (form.permission === 'protected') {
+      await saveBookReaders(savedBook.id, token)
     }
 
     ElMessage.success('Book created successfully')
@@ -141,12 +215,11 @@ const cancel = () => {
               />
             </el-form-item>
 
-            <el-form-item label="Status">
-              <el-select v-model="form.status" class="full-width">
-                <el-option label="Draft" value="DRAFT" />
-                <el-option label="Published" value="PUBLISHED" />
-              </el-select>
-            </el-form-item>
+            <BookPermissionControl
+              v-model="form.permission"
+              v-model:selectedReaders="selectedReaderIds"
+              :users="users"
+            />
           </div>
 
           <div class="right-column">
@@ -339,10 +412,6 @@ const cancel = () => {
 :deep(.el-select__wrapper.is-focused) {
   border-color: #c59234;
   box-shadow: 0 0 0 1px rgba(197, 146, 52, 0.45);
-}
-
-.full-width {
-  width: 100%;
 }
 
 .cover-uploader {
