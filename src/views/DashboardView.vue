@@ -20,6 +20,10 @@ const goUserCenter = () => {
   router.push("/user");
 };
 
+const openSettings = (book: Book) => {
+  router.push(`/books/${book.id}/settings`)
+};
+
 const getCoverUrl = (coverUrl?: string) => {
   if (!coverUrl) return "";
 
@@ -147,7 +151,7 @@ const createBook = () => {
             <el-button class="fantasy-button small secondary" @click="editBook(book)">
               Edit
             </el-button>
-            <el-button class="fantasy-button small setting" @click="editBook(book)">
+            <el-button class="fantasy-button small setting" @click="openSettings(book)">
               Setting
             </el-button>
           </div>
