@@ -304,8 +304,8 @@ const saveChapter = async () => {
   }
 }
 
-const publishBook = () => {
-  ElMessage.success('Book published to the realm')
+const previewBook = () => {
+  ElMessage.success('Previewing book...')
   router.push(`/books/${bookId}/read`)
 }
 
@@ -384,8 +384,8 @@ onMounted(() => {
             {{ isNewChapter ? 'Create Chapter' : 'Save Chapter' }}
           </el-button>
 
-          <el-button class="fantasy-button primary" @click="publishBook">
-            Publish Tome
+          <el-button class="fantasy-button primary" @click="previewBook">
+            Preview
           </el-button>
         </div>
       </header>
