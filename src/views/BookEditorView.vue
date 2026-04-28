@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { uploadMusic } from '@/Api/upload'
+import { uploadMusic, uploadImage } from '@/Api/upload'
 import {
   getChaptersByBook,
   getChapterById,
@@ -35,59 +35,7 @@ const users = ref<any[]>([])
 const selectedNotifyUserIds = ref<number[]>([])
 const createdChapterForNotify = ref<ChapterResponse | null>(null)
 const notifying = ref(false)
-const handleDeleteChapter = async () => {
-  if (!currentChapter.value) {
-    ElMessage.warning('Please select a chapter first')
-    return
-  }
 
-  if (isNewChapter.value) {
-    currentChapter.value = null
-    markdownContent.value = ''
-    musicUrl.value = ''
-    isNewChapter.value = false
-    ElMessage.success('Unsaved chapter removed')
-    return
-  }
-
-  try {
-    await ElMessageBox.confirm(
-      `Are you sure you want to delete "${currentChapter.value.title}"? This action cannot be undone.`,
-      'Delete Chapter',
-      {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
-        type: 'warning'
-      }
-    )
-
-    const deletedChapterId = currentChapter.value.id
-
-    await deleteChapter(bookId, deletedChapterId)
-
-    chapters.value = chapters.value.filter(
-      (chapter) => chapter.id !== deletedChapterId
-    )
-
-    if (chapters.value.length > 0) {
-      await selectChapter(chapters.value[0])
-    } else {
-      currentChapter.value = null
-      markdownContent.value = ''
-      musicUrl.value = ''
-      isNewChapter.value = false
-    }
-
-    ElMessage.success('Chapter deleted')
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') {
-      return
-    }
-
-    console.error(error)
-    ElMessage.error(error.message || 'Failed to delete chapter')
-  }
-}
 const loadChapters = async () => {
   if (!bookId) {
     ElMessage.error('Book id is missing from URL')
@@ -231,9 +179,97 @@ const testMusic = () => {
   }
 
   const audio = new Audio(musicUrl.value.trim())
+
   audio.play().catch(() => {
     ElMessage.error('Music cannot be played. Please check the URL.')
   })
+}
+
+const handleEditorImageUpload = async (
+  files: File[],
+  callback: (urls: string[]) => void
+) => {
+  try {
+    const urls: string[] = []
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        ElMessage.error('Only image files are allowed')
+        continue
+      }
+
+      if (file.size / 1024 / 1024 > 5) {
+        ElMessage.error('Image size must be less than 5MB')
+        continue
+      }
+
+      const result = await uploadImage(file)
+      urls.push(result.url)
+    }
+
+    callback(urls)
+
+    if (urls.length > 0) {
+      ElMessage.success('Image uploaded. Remember to save the chapter.')
+    }
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Image upload failed')
+  }
+}
+
+const handleDeleteChapter = async () => {
+  if (!currentChapter.value) {
+    ElMessage.warning('Please select a chapter first')
+    return
+  }
+
+  if (isNewChapter.value) {
+    currentChapter.value = null
+    markdownContent.value = ''
+    musicUrl.value = ''
+    isNewChapter.value = false
+    ElMessage.success('Unsaved chapter removed')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete "${currentChapter.value.title}"? This action cannot be undone.`,
+      'Delete Chapter',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+
+    const deletedChapterId = currentChapter.value.id
+
+    await deleteChapter(bookId, deletedChapterId)
+
+    chapters.value = chapters.value.filter(
+      (chapter) => chapter.id !== deletedChapterId
+    )
+
+    if (chapters.value.length > 0) {
+      await selectChapter(chapters.value[0])
+    } else {
+      currentChapter.value = null
+      markdownContent.value = ''
+      musicUrl.value = ''
+      isNewChapter.value = false
+    }
+
+    ElMessage.success('Chapter deleted')
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+
+    console.error(error)
+    ElMessage.error(error.message || 'Failed to delete chapter')
+  }
 }
 
 const openNotifyDialog = (chapter: ChapterResponse) => {
@@ -315,7 +351,6 @@ const saveChapter = async () => {
 
   try {
     if (isNewChapter.value) {
-      
       const created = await createChapter(bookId, {
         title: currentChapter.value.title,
         contentMd: markdownContent.value,
@@ -500,6 +535,7 @@ onMounted(() => {
           language="en-US"
           preview-theme="github"
           code-theme="github"
+          @on-upload-img="handleEditorImageUpload"
         />
       </section>
     </main>
@@ -523,14 +559,14 @@ onMounted(() => {
           Choose the readers you want to notify about this new chapter.
         </p>
 
-          <el-select
-            v-model="selectedNotifyUserIds"
-            multiple
-            filterable
-            placeholder="Select readers"
-            class="notify-select"
-            popper-class="fantasy-reader-dropdown"
-          >
+        <el-select
+          v-model="selectedNotifyUserIds"
+          multiple
+          filterable
+          placeholder="Select readers"
+          class="notify-select"
+          popper-class="fantasy-reader-dropdown"
+        >
           <el-option
             v-for="user in users"
             :key="user.id"
@@ -793,6 +829,11 @@ h2 {
   color: #f8ead0;
 }
 
+.danger:hover {
+  background: rgba(180, 45, 45, 0.5);
+  color: #fff3d0;
+}
+
 .editor-card {
   overflow: hidden;
   height: calc(100vh - 292px);
@@ -1041,6 +1082,48 @@ h2 {
   .notify-button {
     width: 100%;
   }
+}
+</style>
 
+<style>
+.fantasy-reader-dropdown {
+  border: 1px solid rgba(214, 168, 79, 0.55) !important;
+  border-radius: 18px !important;
+  background:
+    radial-gradient(circle at top, rgba(214, 168, 79, 0.18), transparent 36%),
+    linear-gradient(135deg, #2a1c16, #120b08) !important;
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.55),
+    inset 0 0 24px rgba(214, 168, 79, 0.06) !important;
+  overflow: hidden;
+}
+
+.fantasy-reader-dropdown .el-select-dropdown__list {
+  padding: 10px !important;
+}
+
+.fantasy-reader-dropdown .el-select-dropdown__item {
+  height: 46px;
+  margin-bottom: 6px;
+  padding: 0 16px;
+  border-radius: 14px;
+  color: #f3e2b8;
+  font-weight: 700;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.fantasy-reader-dropdown .el-select-dropdown__item:hover {
+  background: rgba(214, 168, 79, 0.16);
+  color: #fff3d0;
+}
+
+.fantasy-reader-dropdown .el-select-dropdown__item.is-selected {
+  background: linear-gradient(135deg, #d6a84f, #8f5f1f);
+  color: #1c1410;
+}
+
+.fantasy-reader-dropdown .el-popper__arrow::before {
+  background: #2a1c16 !important;
+  border-color: rgba(214, 168, 79, 0.55) !important;
 }
 </style>
