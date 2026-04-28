@@ -21,6 +21,7 @@ export interface ChapterResponse {
   title: string;
   contentMd: string;
   chapterOrder: number;
+  musicUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
