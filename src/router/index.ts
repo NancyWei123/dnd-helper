@@ -7,7 +7,7 @@ import DashboardView from '../views/DashboardView.vue'
 import BookEditorView from '../views/BookEditorView.vue'
 import BooksView from '../views/BooksView.vue'
 import NewBookView from '../views/NewBookView.vue'
-
+import UserCenterView from '../views/UserCenterView.vue'
 
 const routes = [
   { path: '/', name: 'home', component: HomeView },
@@ -21,7 +21,7 @@ const routes = [
 
   { path: '/books/:bookId/read', name: 'read-book', component: BooksView },
   { path: '/books/new', name: 'new-book', component: NewBookView },
-  
+  { path: '/user', name: 'user-center', component: UserCenterView }
 ]
 const router = createRouter({
   history: createWebHistory(),

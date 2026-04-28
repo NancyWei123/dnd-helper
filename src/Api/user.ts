@@ -26,6 +26,71 @@ export interface RegisterResponse {
   email: string;
   username: string;
 }
+export const changeEmail = async (newEmail: string) => {
+  const token = localStorage.getItem('token')
+
+  const response = await fetch(`${BASE_URL}/email`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ newEmail })
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to change email')
+  }
+
+  return data
+}
+
+export const changePassword = async (
+  oldPassword: string,
+  newPassword: string
+) => {
+  const token = localStorage.getItem('token')
+
+  const response = await fetch(`${BASE_URL}/password`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      oldPassword,
+      newPassword
+    })
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to change password')
+  }
+
+  return data
+}
+
+export const getUser = async () => {
+  const token = localStorage.getItem('token')
+
+  const response = await fetch('http://localhost:8080/api/users', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to get user')
+  }
+
+  return await response.json()
+}
+
 export const sendVerificationCode = async (email: string) => {
   const response = await fetch(`${BASE_URL}/users/send-code`, {
     method: 'POST',

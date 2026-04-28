@@ -14,7 +14,9 @@ const router = useRouter();
 
 const books = ref<Book[]>([]);
 const loading = ref(false);
-
+const goUserCenter = () => {
+  router.push('/user')
+}
 const loadBooks = async () => {
   loading.value = true;
 
@@ -59,10 +61,15 @@ const createBook = () => {
           Manage your fantasy books, drafts, chapters, and published adventures.
         </p>
       </div>
+      <div class="button-group">
+        <el-button class="fantasy-button primary" @click="createBook">
+          Create New Book
+        </el-button>
 
-      <el-button class="fantasy-button primary" @click="createBook">
-        Create New Book
+      <el-button class="fantasy-button primary" @click="goUserCenter">
+        User Center
       </el-button>
+    </div>
     </div>
 
     <div v-if="loading" class="state-card">
