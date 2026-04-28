@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
@@ -19,6 +19,9 @@ const chapters = ref<ChapterResponse[]>([])
 const currentChapter = ref<ChapterResponse | null>(null)
 
 const markdownContent = ref('')
+const musicUrl = ref('')
+const audioRef = ref<HTMLAudioElement | null>(null)
+const isPlaying = ref(false)
 
 const loadChapters = async () => {
   loading.value = true
@@ -42,12 +45,50 @@ const selectChapter = async (chapter: ChapterResponse) => {
     const chapterDetail = await getChapterById(bookId, chapter.id)
 
     currentChapter.value = chapterDetail
-
     markdownContent.value = chapterDetail.contentMd || 'No content yet.'
+    musicUrl.value = chapterDetail.musicUrl || ''
+
+    isPlaying.value = false
+
+    await nextTick()
+
+    if (audioRef.value) {
+      audioRef.value.pause()
+      audioRef.value.currentTime = 0
+      audioRef.value.load()
+    }
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to load chapter')
   }
+}
+
+const toggleMusic = async () => {
+  if (!audioRef.value) {
+    ElMessage.warning('No music found for this chapter')
+    return
+  }
+
+  try {
+    if (audioRef.value.paused) {
+      await audioRef.value.play()
+      isPlaying.value = true
+    } else {
+      audioRef.value.pause()
+      isPlaying.value = false
+    }
+  } catch (error) {
+    console.error(error)
+    ElMessage.warning('Please click Play Music again')
+  }
+}
+
+const stopMusic = () => {
+  if (!audioRef.value) return
+
+  audioRef.value.pause()
+  audioRef.value.currentTime = 0
+  isPlaying.value = false
 }
 
 onMounted(() => {
@@ -91,6 +132,25 @@ onMounted(() => {
           <p class="eyebrow">Scriptorium</p>
           <h1>{{ currentChapter?.title || 'Select a Chapter' }}</h1>
         </div>
+
+        <div v-if="musicUrl" class="music-player">
+          <audio
+            ref="audioRef"
+            :src="musicUrl"
+            loop
+            @ended="isPlaying = false"
+            @pause="isPlaying = false"
+            @play="isPlaying = true"
+          />
+
+          <button class="music-button" @click="toggleMusic">
+            {{ isPlaying ? 'Pause Music' : 'Play Music' }}
+          </button>
+
+          <button class="music-button secondary" @click="stopMusic">
+            Stop
+          </button>
+        </div>
       </header>
 
       <section class="editor-card">
@@ -111,6 +171,33 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.music-player {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.music-button {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #d6a84f, #8f5f1f);
+  color: #1c1410;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.music-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(214, 168, 79, 0.22);
+}
+
+.music-button.secondary {
+  background: rgba(214, 168, 79, 0.12);
+  color: #d6a84f;
+  border: 1px solid rgba(214, 168, 79, 0.36);
+}
 .editor-page {
   min-height: 100vh;
   display: grid;
