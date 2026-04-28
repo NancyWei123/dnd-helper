@@ -110,16 +110,23 @@ export async function updateChapter(
 /**
  * DELETE /api/books/{bookId}/chapters/{chapterId}
  */
-export async function deleteChapter(
-  bookId: number | string,
-  chapterId: number | string
-): Promise<string> {
-  const response = await axios.delete<string>(
-    `${BASE_URL}/books/${bookId}/chapters/${chapterId}`,
-    {
-      headers: authHeaders(),
-    }
-  );
+export const deleteChapter = async (bookId: string, chapterId: number) => {
+  const token = localStorage.getItem('token')
 
-  return response.data;
+  const response = await fetch(
+    `http://localhost:8080/api/books/${bookId}/chapters/${chapterId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  )
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(message || 'Failed to delete chapter')
+  }
+
+  return true
 }

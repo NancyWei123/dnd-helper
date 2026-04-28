@@ -140,12 +140,15 @@ const createBook = () => {
           </p>
 
           <div class="book-actions">
-            <el-button class="fantasy-button small" @click="openBook(book)">
-              {{ book.status === "PUBLISHED" ? "Read Tome" : "Continue Writing" }}
-            </el-button>
-
+            <el-button v-if="book.status === 'PUBLISHED'" class="fantasy-button small" @click="openBook(book)"
+          >
+            Read
+          </el-button>
             <el-button class="fantasy-button small secondary" @click="editBook(book)">
               Edit
+            </el-button>
+            <el-button class="fantasy-button small setting" @click="editBook(book)">
+              Setting
             </el-button>
           </div>
         </div>
@@ -326,6 +329,11 @@ h2 {
 
 .secondary {
   border: 1px solid rgba(214, 168, 79, 0.65);
+  background: rgba(15, 10, 7, 0.45);
+  color: #f3e2b8;
+}
+.setting {
+  border: 1px solid rgba(108, 79, 214, 0.65);
   background: rgba(15, 10, 7, 0.45);
   color: #f3e2b8;
 }

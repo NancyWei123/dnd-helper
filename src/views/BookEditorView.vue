@@ -3,13 +3,14 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { uploadMusic } from '@/Api/upload'
 import {
   getChaptersByBook,
   getChapterById,
   createChapter,
   updateChapter,
+  deleteChapter,
   type ChapterResponse
 } from '@/Api/chapter'
 
@@ -34,7 +35,59 @@ const users = ref<any[]>([])
 const selectedNotifyUserIds = ref<number[]>([])
 const createdChapterForNotify = ref<ChapterResponse | null>(null)
 const notifying = ref(false)
+const handleDeleteChapter = async () => {
+  if (!currentChapter.value) {
+    ElMessage.warning('Please select a chapter first')
+    return
+  }
 
+  if (isNewChapter.value) {
+    currentChapter.value = null
+    markdownContent.value = ''
+    musicUrl.value = ''
+    isNewChapter.value = false
+    ElMessage.success('Unsaved chapter removed')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete "${currentChapter.value.title}"? This action cannot be undone.`,
+      'Delete Chapter',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+
+    const deletedChapterId = currentChapter.value.id
+
+    await deleteChapter(bookId, deletedChapterId)
+
+    chapters.value = chapters.value.filter(
+      (chapter) => chapter.id !== deletedChapterId
+    )
+
+    if (chapters.value.length > 0) {
+      await selectChapter(chapters.value[0])
+    } else {
+      currentChapter.value = null
+      markdownContent.value = ''
+      musicUrl.value = ''
+      isNewChapter.value = false
+    }
+
+    ElMessage.success('Chapter deleted')
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+
+    console.error(error)
+    ElMessage.error(error.message || 'Failed to delete chapter')
+  }
+}
 const loadChapters = async () => {
   if (!bookId) {
     ElMessage.error('Book id is missing from URL')
@@ -382,6 +435,14 @@ onMounted(() => {
             @click="saveChapter"
           >
             {{ isNewChapter ? 'Create Chapter' : 'Save Chapter' }}
+          </el-button>
+
+          <el-button
+            class="fantasy-button danger"
+            :disabled="!currentChapter"
+            @click="handleDeleteChapter"
+          >
+            Delete Chapter
           </el-button>
 
           <el-button class="fantasy-button primary" @click="previewBook">
@@ -980,6 +1041,6 @@ h2 {
   .notify-button {
     width: 100%;
   }
-  
+
 }
 </style>
