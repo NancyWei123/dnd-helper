@@ -8,20 +8,42 @@ type BookStatus = "DRAFT" | "PUBLISHED";
 
 interface Book extends BookResponse {
   status: BookStatus;
+  coverUrl?: string;
 }
 
 const router = useRouter();
 
 const books = ref<Book[]>([]);
 const loading = ref(false);
+
 const goUserCenter = () => {
-  router.push('/user')
-}
+  router.push("/user");
+};
+
+const getCoverUrl = (coverUrl?: string) => {
+  if (!coverUrl) return "";
+
+  // blob URL is only a temporary browser preview, cannot be used after refresh
+  if (coverUrl.startsWith("blob:")) return "";
+
+  // full backend or external URL
+  if (coverUrl.startsWith("http://") || coverUrl.startsWith("https://")) {
+    return coverUrl;
+  }
+
+  // backend relative upload URL, for example: /uploads/covers/xxx.png
+  if (coverUrl.startsWith("/uploads")) {
+    return `http://localhost:8080${coverUrl}`;
+  }
+
+  return coverUrl;
+};
+
 const loadBooks = async () => {
   loading.value = true;
 
   try {
-    books.value = await getAllBooks() as Book[];
+    books.value = (await getAllBooks()) as Book[];
   } catch (error) {
     console.error(error);
     ElMessage.error("Failed to load books");
@@ -61,15 +83,16 @@ const createBook = () => {
           Manage your fantasy books, drafts, chapters, and published adventures.
         </p>
       </div>
+
       <div class="button-group">
         <el-button class="fantasy-button primary" @click="createBook">
           Create New Book
         </el-button>
 
-      <el-button class="fantasy-button primary" @click="goUserCenter">
-        User Center
-      </el-button>
-    </div>
+        <el-button class="fantasy-button primary" @click="goUserCenter">
+          User Center
+        </el-button>
+      </div>
     </div>
 
     <div v-if="loading" class="state-card">
@@ -88,9 +111,10 @@ const createBook = () => {
       >
         <div class="book-cover" @click="openBook(book)">
           <img
-            v-if="book.coverUrl"
-            :src="book.coverUrl"
+            v-if="getCoverUrl(book.coverUrl)"
+            :src="getCoverUrl(book.coverUrl)"
             :alt="book.title"
+            @error="book.coverUrl = ''"
           />
           <span v-else>📖</span>
         </div>
@@ -177,6 +201,17 @@ h1 {
   color: #c9b28c;
   font-size: 17px;
   line-height: 1.7;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 190px;
+}
+
+.button-group .el-button {
+  margin-left: 0;
 }
 
 .state-card {
@@ -303,6 +338,10 @@ h2 {
   .page-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .button-group {
+    width: 100%;
   }
 }
 

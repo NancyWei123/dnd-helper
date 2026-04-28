@@ -1,9 +1,10 @@
-<script setup>
+<script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import BookPermissionControl from '@/views/BookPermissionControl.vue'
+import { uploadCover } from '@/Api/upload'
 
 const router = useRouter()
 const formRef = ref(null)
@@ -74,14 +75,25 @@ const beforeCoverUpload = (file) => {
   return true
 }
 
-const handleCoverUpload = async (options) => {
+const coverPreviewUrl = ref('')
+
+const handleCoverUpload = async (options: any) => {
   const file = options.file
 
-  // Local preview only.
-  // This URL is temporary and will disappear after page refresh.
-  form.coverUrl = URL.createObjectURL(file)
+  try {
+    // only for preview, do not save this to database
+    coverPreviewUrl.value = URL.createObjectURL(file)
 
-  ElMessage.success('Cover selected')
+    const result = await uploadCover(file)
+
+    // this is the real backend URL, save this to database
+    form.coverUrl = result.url
+
+    ElMessage.success('Cover uploaded')
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Cover upload failed')
+  }
 }
 
 const removeCover = () => {
@@ -231,13 +243,12 @@ const cancel = () => {
                 :http-request="handleCoverUpload"
                 accept="image/*"
               >
-                <div v-if="form.coverUrl" class="cover-wrapper">
+                <<div v-if="coverPreviewUrl || form.coverUrl" class="cover-wrapper">
                   <img
-                    :src="form.coverUrl"
+                    :src="coverPreviewUrl || form.coverUrl"
                     class="cover-preview"
                     alt="Book cover"
                   />
-
                   <div class="cover-overlay">
                     <span>Click to change</span>
                   </div>
