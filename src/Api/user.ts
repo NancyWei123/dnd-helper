@@ -26,6 +26,22 @@ export interface RegisterResponse {
   email: string;
   username: string;
 }
+export const sendVerificationCode = async (email: string) => {
+  const response = await fetch(`${BASE_URL}/users/send-code`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email })
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  return {
+    ok: response.ok,
+    ...data
+  }
+}
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   const response = await axios.post<LoginResponse>(

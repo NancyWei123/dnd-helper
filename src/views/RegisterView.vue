@@ -1,22 +1,87 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { register } from "@/Api/user";
+import { register, sendVerificationCode } from '@/Api/user'
 
 const router = useRouter()
+
 const loading = ref(false)
+const sendCodeLoading = ref(false)
+const countdown = ref(0)
+
+let timer: number | null = null
 
 const form = reactive({
   username: '',
   email: '',
+  verificationCode: '',
   password: '',
   confirmPassword: ''
 })
 
+const isValidEmail = (email: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+const startCountdown = () => {
+  countdown.value = 60
+
+  timer = window.setInterval(() => {
+    countdown.value--
+
+    if (countdown.value <= 0) {
+      if (timer !== null) {
+        clearInterval(timer)
+        timer = null
+      }
+    }
+  }, 1000)
+}
+
+const handleSendCode = async () => {
+  if (!form.email) {
+    ElMessage.warning('Please enter your email first')
+    return
+  }
+
+  if (!isValidEmail(form.email)) {
+    ElMessage.warning('Please enter a valid email')
+    return
+  }
+
+  sendCodeLoading.value = true
+
+  try {
+    const response = await sendVerificationCode(form.email)
+
+    if (!response.ok) {
+      throw new Error('Send verification code failed')
+    }
+
+    ElMessage.success('Verification code sent')
+    startCountdown()
+  } catch (error) {
+    ElMessage.error('Failed to send verification code')
+  } finally {
+    sendCodeLoading.value = false
+  }
+}
+
 const handleRegister = async () => {
-  if (!form.username || !form.email || !form.password) {
+  if (
+    !form.username ||
+    !form.email ||
+    !form.verificationCode ||
+    !form.password ||
+    !form.confirmPassword
+  ) {
     ElMessage.warning('Please fill in all fields')
+    return
+  }
+
+  if (!isValidEmail(form.email)) {
+    ElMessage.warning('Please enter a valid email')
     return
   }
 
@@ -31,15 +96,16 @@ const handleRegister = async () => {
     const response = await register({
       username: form.username,
       email: form.email,
+      verificationCode: form.verificationCode,
       password: form.password
     })
-    
+
     if (!response.ok) {
       throw new Error('Register failed')
     }
 
     ElMessage.success('Account created successfully')
-    localStorage.setItem("token", response.token);
+    localStorage.setItem('token', response.token)
     router.push('/login')
   } catch (error) {
     ElMessage.error('Register failed. Please try again.')
@@ -47,6 +113,12 @@ const handleRegister = async () => {
     loading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  if (timer !== null) {
+    clearInterval(timer)
+  }
+})
 </script>
 
 <template>
@@ -70,9 +142,28 @@ const handleRegister = async () => {
         </el-form-item>
 
         <el-form-item label="Email">
+          <div class="email-row">
+            <el-input
+              v-model="form.email"
+              placeholder="Enter your email"
+              size="large"
+            />
+
+            <el-button
+              class="send-code-button"
+              :loading="sendCodeLoading"
+              :disabled="countdown > 0"
+              @click="handleSendCode"
+            >
+              {{ countdown > 0 ? `${countdown}s` : 'Send Code' }}
+            </el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="Verification Code">
           <el-input
-            v-model="form.email"
-            placeholder="Enter your email"
+            v-model="form.verificationCode"
+            placeholder="Enter verification code"
             size="large"
           />
         </el-form-item>
@@ -94,7 +185,7 @@ const handleRegister = async () => {
             show-password
             placeholder="Confirm your password"
             size="large"
-            @keyup.enter="register"
+            @keyup.enter="handleRegister"
           />
         </el-form-item>
 
@@ -175,6 +266,31 @@ h1 {
   flex-direction: column;
 }
 
+.email-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.email-row .el-input {
+  flex: 1;
+}
+
+.send-code-button {
+  height: 40px;
+  min-width: 110px;
+  border-radius: 12px;
+  border: 1px solid rgba(214, 168, 79, 0.45);
+  background: rgba(214, 168, 79, 0.12);
+  color: #d6a84f;
+  font-weight: 700;
+}
+
+.send-code-button:hover {
+  background: rgba(214, 168, 79, 0.22);
+  color: #f3e2b8;
+}
+
 .fantasy-button {
   width: 100%;
   height: 46px;
@@ -234,6 +350,14 @@ h1 {
 
   h1 {
     font-size: 34px;
+  }
+
+  .email-row {
+    flex-direction: column;
+  }
+
+  .send-code-button {
+    width: 100%;
   }
 }
 </style>
