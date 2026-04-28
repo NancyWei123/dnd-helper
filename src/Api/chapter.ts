@@ -7,12 +7,14 @@ export interface CreateChapterRequest {
   title: string;
   contentMd: string;
   chapterOrder: number;
+  musicUrl?: string;
 }
 
 export interface UpdateChapterRequest {
   title: string;
   contentMd: string;
   chapterOrder: number;
+  musicUrl?: string;
 }
 
 export interface ChapterResponse {

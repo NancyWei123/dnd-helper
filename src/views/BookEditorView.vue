@@ -28,6 +28,13 @@ const musicUrl = ref('')
 
 const isNewChapter = ref(false)
 
+// notification popup
+const notifyDialogVisible = ref(false)
+const users = ref<any[]>([])
+const selectedNotifyUserIds = ref<number[]>([])
+const createdChapterForNotify = ref<ChapterResponse | null>(null)
+const notifying = ref(false)
+
 const loadChapters = async () => {
   if (!bookId) {
     ElMessage.error('Book id is missing from URL')
@@ -49,6 +56,33 @@ const loadChapters = async () => {
     ElMessage.error('Failed to load chapters')
   } finally {
     loading.value = false
+  }
+}
+
+const fetchUsers = async () => {
+  const token = localStorage.getItem('token')
+
+  if (!token) {
+    return
+  }
+
+  try {
+    const response = await fetch('http://localhost:8080/api/users/all', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(message || 'Failed to load users')
+    }
+
+    users.value = await response.json()
+  } catch (error: any) {
+    console.error(error)
+    ElMessage.error(error.message || 'Failed to load users')
   }
 }
 
@@ -99,6 +133,7 @@ Describe the scene in Markdown.
   musicUrl.value = ''
   isNewChapter.value = true
 }
+
 const beforeMusicUpload = (file: File) => {
   const isAudio = file.type.startsWith('audio/')
   const isLt50M = file.size / 1024 / 1024 < 50
@@ -148,6 +183,70 @@ const testMusic = () => {
   })
 }
 
+const openNotifyDialog = (chapter: ChapterResponse) => {
+  createdChapterForNotify.value = chapter
+  selectedNotifyUserIds.value = []
+  notifyDialogVisible.value = true
+}
+
+const sendChapterNotification = async () => {
+  if (!createdChapterForNotify.value) {
+    ElMessage.warning('No chapter selected')
+    return
+  }
+
+  if (selectedNotifyUserIds.value.length === 0) {
+    ElMessage.warning('Please select at least one user')
+    return
+  }
+
+  const token = localStorage.getItem('token')
+
+  if (!token) {
+    ElMessage.error('Please login first')
+    router.push('/login')
+    return
+  }
+
+  notifying.value = true
+
+  try {
+    const response = await fetch('http://localhost:8080/api/notifications/chapter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        bookId: Number(bookId),
+        chapterId: createdChapterForNotify.value.id,
+        userIds: selectedNotifyUserIds.value
+      })
+    })
+
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(message || 'Failed to send notification')
+    }
+
+    ElMessage.success('Notification sent')
+    notifyDialogVisible.value = false
+    selectedNotifyUserIds.value = []
+    createdChapterForNotify.value = null
+  } catch (error: any) {
+    console.error(error)
+    ElMessage.error(error.message || 'Failed to send notification')
+  } finally {
+    notifying.value = false
+  }
+}
+
+const skipNotification = () => {
+  notifyDialogVisible.value = false
+  selectedNotifyUserIds.value = []
+  createdChapterForNotify.value = null
+}
+
 const saveChapter = async () => {
   if (!currentChapter.value) {
     ElMessage.warning('Please select a chapter first')
@@ -163,6 +262,7 @@ const saveChapter = async () => {
 
   try {
     if (isNewChapter.value) {
+      
       const created = await createChapter(bookId, {
         title: currentChapter.value.title,
         contentMd: markdownContent.value,
@@ -177,6 +277,7 @@ const saveChapter = async () => {
       isNewChapter.value = false
 
       ElMessage.success('New chapter created')
+      openNotifyDialog(created)
     } else {
       const updated = await updateChapter(bookId, currentChapter.value.id, {
         title: currentChapter.value.title,
@@ -210,6 +311,7 @@ const publishBook = () => {
 
 onMounted(() => {
   loadChapters()
+  fetchUsers()
 })
 </script>
 
@@ -289,42 +391,42 @@ onMounted(() => {
       </header>
 
       <section v-if="currentChapter" class="music-card">
-  <div class="music-title">
-    <span>🎵 Chapter Music</span>
-    <small>Upload an MP3 file from disk, or paste a public music URL.</small>
-  </div>
+        <div class="music-title">
+          <span>🎵 Chapter Music</span>
+          <small>Upload an MP3 file from disk, or paste a public music URL.</small>
+        </div>
 
-  <div class="music-row">
-    <el-input
-      v-model="musicUrl"
-      placeholder="Upload music or paste URL"
-      clearable
-    />
+        <div class="music-row">
+          <el-input
+            v-model="musicUrl"
+            placeholder="Upload music or paste URL"
+            clearable
+          />
 
-    <el-upload
-      :show-file-list="false"
-      :before-upload="beforeMusicUpload"
-      :http-request="handleMusicUpload"
-      accept="audio/*"
-    >
-      <el-button class="fantasy-button secondary">
-        Upload
-      </el-button>
-    </el-upload>
+          <el-upload
+            :show-file-list="false"
+            :before-upload="beforeMusicUpload"
+            :http-request="handleMusicUpload"
+            accept="audio/*"
+          >
+            <el-button class="fantasy-button secondary">
+              Upload
+            </el-button>
+          </el-upload>
 
-    <el-button class="fantasy-button secondary" @click="testMusic">
-      Test
-    </el-button>
+          <el-button class="fantasy-button secondary" @click="testMusic">
+            Test
+          </el-button>
 
-    <el-button class="fantasy-button danger" @click="clearMusic">
-      Clear
-    </el-button>
-  </div>
+          <el-button class="fantasy-button danger" @click="clearMusic">
+            Clear
+          </el-button>
+        </div>
 
-  <p v-if="musicUrl" class="music-url-preview">
-    {{ musicUrl }}
-  </p>
-</section>
+        <p v-if="musicUrl" class="music-url-preview">
+          {{ musicUrl }}
+        </p>
+      </section>
 
       <section class="editor-card">
         <div v-if="!currentChapter" class="empty-editor">
@@ -340,6 +442,59 @@ onMounted(() => {
         />
       </section>
     </main>
+
+    <el-dialog
+      v-model="notifyDialogVisible"
+      title="Notify Readers"
+      width="560px"
+      class="fantasy-notify-dialog"
+      align-center
+    >
+      <div class="notify-content">
+        <div class="notify-icon">✨</div>
+
+        <p class="notify-text">
+          <strong>{{ createdChapterForNotify?.title }}</strong>
+          has been created.
+        </p>
+
+        <p class="notify-hint">
+          Choose the readers you want to notify about this new chapter.
+        </p>
+
+          <el-select
+            v-model="selectedNotifyUserIds"
+            multiple
+            filterable
+            placeholder="Select readers"
+            class="notify-select"
+            popper-class="fantasy-reader-dropdown"
+          >
+          <el-option
+            v-for="user in users"
+            :key="user.id"
+            :label="`${user.username} (${user.email})`"
+            :value="user.id"
+          />
+        </el-select>
+      </div>
+
+      <template #footer>
+        <div class="notify-footer">
+          <el-button class="notify-button ghost" @click="skipNotification">
+            Skip
+          </el-button>
+
+          <el-button
+            class="notify-button gold"
+            :loading="notifying"
+            @click="sendChapterNotification"
+          >
+            Send Notification
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -350,6 +505,7 @@ onMounted(() => {
   font-size: 12px;
   word-break: break-all;
 }
+
 .editor-page {
   min-height: 100vh;
   display: grid;
@@ -613,6 +769,182 @@ h2 {
   color: #d6a84f;
 }
 
+/* fantasy notification dialog */
+:deep(.fantasy-notify-dialog) {
+  border-radius: 30px;
+  border: 1px solid rgba(214, 168, 79, 0.52);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(214, 168, 79, 0.22), transparent 32%),
+    radial-gradient(circle at 18% 20%, rgba(127, 29, 29, 0.28), transparent 34%),
+    linear-gradient(135deg, #2a1c16, #120b08);
+  box-shadow:
+    0 36px 120px rgba(0, 0, 0, 0.72),
+    inset 0 0 44px rgba(214, 168, 79, 0.08);
+  overflow: hidden;
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__header) {
+  padding: 34px 42px 8px;
+  margin: 0;
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__title) {
+  color: #f3e2b8;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 42px;
+  line-height: 0.98;
+  font-weight: 900;
+  text-shadow:
+    0 4px 0 #5c3518,
+    0 14px 24px rgba(0, 0, 0, 0.42);
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__headerbtn) {
+  top: 28px;
+  right: 30px;
+  width: 34px;
+  height: 34px;
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__close) {
+  color: #d6a84f;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__close:hover) {
+  color: #f8ead0;
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__body) {
+  padding: 18px 42px 24px;
+}
+
+:deep(.fantasy-notify-dialog .el-dialog__footer) {
+  padding: 0 42px 38px;
+}
+
+.notify-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.notify-icon {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #f3e2b8;
+  font-size: 28px;
+  background: rgba(214, 168, 79, 0.16);
+  border: 1px solid rgba(214, 168, 79, 0.45);
+  box-shadow: inset 0 0 20px rgba(214, 168, 79, 0.08);
+}
+
+.notify-text {
+  margin: 0;
+  color: #f3e2b8;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.notify-text strong {
+  color: #d6a84f;
+  font-weight: 900;
+}
+
+.notify-hint {
+  margin: 0;
+  color: #c9b28c;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.notify-select {
+  width: 100%;
+}
+
+:deep(.fantasy-notify-dialog .el-select__wrapper) {
+  min-height: 50px;
+  border-radius: 16px;
+  background: rgba(15, 10, 7, 0.78);
+  border: 1px solid rgba(214, 168, 79, 0.38);
+  box-shadow: none;
+}
+
+:deep(.fantasy-notify-dialog .el-select__wrapper.is-focused) {
+  border-color: #d6a84f;
+  box-shadow: 0 0 0 1px rgba(214, 168, 79, 0.42);
+}
+
+:deep(.fantasy-notify-dialog .el-select__placeholder) {
+  color: rgba(248, 234, 208, 0.58);
+}
+
+:deep(.fantasy-notify-dialog .el-select__selected-item) {
+  color: #f8ead0;
+}
+
+:deep(.fantasy-notify-dialog .el-tag) {
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(214, 168, 79, 0.5);
+  background: rgba(214, 168, 79, 0.18);
+  color: #f3e2b8;
+  font-weight: 700;
+}
+
+:deep(.fantasy-notify-dialog .el-tag__close) {
+  color: #d6a84f;
+}
+
+:deep(.fantasy-notify-dialog .el-tag__close:hover) {
+  background: rgba(214, 168, 79, 0.3);
+  color: #fff3d0;
+}
+
+.notify-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.notify-button {
+  min-width: 150px;
+  height: 52px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.notify-button.gold {
+  border: none;
+  background: linear-gradient(135deg, #d6a84f, #8f5f1f);
+  color: #1c1410;
+}
+
+.notify-button.gold:hover {
+  background: linear-gradient(135deg, #efc76d, #a86f24);
+  color: #1c1410;
+  transform: translateY(-1px);
+}
+
+.notify-button.ghost {
+  border: 1px solid rgba(214, 168, 79, 0.42);
+  background: rgba(15, 10, 7, 0.45);
+  color: #f3e2b8;
+}
+
+.notify-button.ghost:hover {
+  background: rgba(214, 168, 79, 0.14);
+  color: #f8ead0;
+  transform: translateY(-1px);
+}
+
 @media (max-width: 900px) {
   .editor-page {
     grid-template-columns: 1fr;
@@ -640,5 +972,14 @@ h2 {
   .editor-card {
     height: 70vh;
   }
+
+  .notify-footer {
+    flex-direction: column;
+  }
+
+  .notify-button {
+    width: 100%;
+  }
+  
 }
 </style>

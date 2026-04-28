@@ -23,6 +23,26 @@ const musicUrl = ref('')
 const audioRef = ref<HTMLAudioElement | null>(null)
 const isPlaying = ref(false)
 
+const getPlayableMusicUrl = (url: string) => {
+  if (!url) return ''
+
+  const trimmedUrl = url.trim()
+
+  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+    return trimmedUrl
+  }
+
+  if (trimmedUrl.startsWith('/uploads')) {
+    return `http://localhost:8080${trimmedUrl}`
+  }
+
+  if (trimmedUrl.startsWith('/music')) {
+    return `${window.location.origin}${trimmedUrl}`
+  }
+
+  return trimmedUrl
+}
+
 const loadChapters = async () => {
   loading.value = true
 
@@ -47,13 +67,13 @@ const selectChapter = async (chapter: ChapterResponse) => {
     currentChapter.value = chapterDetail
     markdownContent.value = chapterDetail.contentMd || 'No content yet.'
     musicUrl.value = chapterDetail.musicUrl || ''
-
     isPlaying.value = false
 
     await nextTick()
 
     if (audioRef.value) {
       audioRef.value.pause()
+      audioRef.value.removeAttribute('src')
       audioRef.value.currentTime = 0
       audioRef.value.load()
     }
@@ -64,12 +84,29 @@ const selectChapter = async (chapter: ChapterResponse) => {
 }
 
 const toggleMusic = async () => {
-  if (!audioRef.value) {
+  if (!musicUrl.value) {
     ElMessage.warning('No music found for this chapter')
     return
   }
 
+  const playableUrl = getPlayableMusicUrl(musicUrl.value)
+
+  if (!playableUrl) {
+    ElMessage.warning('No music found for this chapter')
+    return
+  }
+
+  if (!audioRef.value) {
+    ElMessage.warning('Audio player is not ready')
+    return
+  }
+
   try {
+    if (audioRef.value.src !== playableUrl) {
+      audioRef.value.src = playableUrl
+      audioRef.value.load()
+    }
+
     if (audioRef.value.paused) {
       await audioRef.value.play()
       isPlaying.value = true
@@ -78,8 +115,8 @@ const toggleMusic = async () => {
       isPlaying.value = false
     }
   } catch (error) {
-    console.error(error)
-    ElMessage.warning('Please click Play Music again')
+    console.error('Music play failed:', error)
+    ElMessage.warning('Music cannot be played. Please check the music URL.')
   }
 }
 
@@ -136,8 +173,8 @@ onMounted(() => {
         <div v-if="musicUrl" class="music-player">
           <audio
             ref="audioRef"
-            :src="musicUrl"
             loop
+            preload="auto"
             @ended="isPlaying = false"
             @pause="isPlaying = false"
             @play="isPlaying = true"
@@ -198,6 +235,7 @@ onMounted(() => {
   color: #d6a84f;
   border: 1px solid rgba(214, 168, 79, 0.36);
 }
+
 .editor-page {
   min-height: 100vh;
   display: grid;
