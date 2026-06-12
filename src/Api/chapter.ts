@@ -114,7 +114,7 @@ export const deleteChapter = async (bookId: string, chapterId: number) => {
   const token = localStorage.getItem('token')
 
   const response = await fetch(
-    `http://localhost:8080/api/books/${bookId}/chapters/${chapterId}`,
+    `${BASE_URL}/books/${bookId}/chapters/${chapterId}`,
     {
       method: 'DELETE',
       headers: {

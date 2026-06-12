@@ -125,7 +125,7 @@ export async function updateBook(
  * DELETE /api/books/{bookId}
  * Delete one book
  */
-export async function deleteBook(
+export async function deleteBookById(
   bookId: number | string
 ): Promise<string> {
   const response = await axios.delete<string>(
@@ -136,4 +136,37 @@ export async function deleteBook(
   );
 
   return response.data;
+}
+
+export async function saveBookReaders(
+  bookId: number | string,
+  token: string,
+  selectedReaderIds: number[]
+) {
+const response = await fetch(
+    `${BASE_URL}/books/${bookId}/readers`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        userIds: selectedReaderIds
+      })
+    }
+  )
+}
+
+export async function fetchBookReaders(
+  bookId: number | string,
+  token: string
+) {
+  const response = await fetch(`${BASE_URL}/books/${bookId}/readers`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+  return response.json();
 }

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { ElMessage } from "element-plus";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -77,7 +78,7 @@ export const changePassword = async (
 export const getUser = async () => {
   const token = localStorage.getItem('token')
 
-  const response = await fetch('http://localhost:8080/api/users', {
+  const response = await fetch(`${BASE_URL}/users`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`
@@ -90,6 +91,24 @@ export const getUser = async () => {
 
   return await response.json()
 }
+
+export const fetchUsers = async () => {
+  const token = localStorage.getItem('token')
+
+  const response = await fetch(`${BASE_URL}/users/all`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to get user')
+  }
+  
+  return await response.json()
+}
+
 
 export const sendVerificationCode = async (email: string) => {
   const response = await fetch(`${BASE_URL}/users/send-code`, {

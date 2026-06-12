@@ -5,6 +5,8 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import BookPermissionControl from '@/views/BookPermissionControl.vue'
 import { uploadCover } from '@/Api/upload'
+import { fetchUsers } from '@/Api/user'
+import { saveBookReaders, createBook } from '@/Api/book'
 
 const router = useRouter()
 const formRef = ref(null)
@@ -28,10 +30,10 @@ const rules = {
 }
 
 onMounted(() => {
-  fetchUsers()
+  toFetchUsers()
 })
 
-const fetchUsers = async () => {
+const toFetchUsers = async () => {
   const token = localStorage.getItem('token')
 
   if (!token) {
@@ -39,22 +41,11 @@ const fetchUsers = async () => {
   }
 
   try {
-    const response = await fetch('http://localhost:8080/api/users/all', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(message || 'Failed to load users')
-    }
-
-    users.value = await response.json()
-  } catch (error) {
+    const data = await fetchUsers(token)
+    users.value = data
+  } catch (error: any) {
     console.error(error)
-    ElMessage.error(error.message)
+    ElMessage.error(error.message || 'Failed to load users')
   }
 }
 
@@ -101,27 +92,10 @@ const removeCover = () => {
 }
 
 const saveBookReaders = async (bookId, token) => {
-  const response = await fetch(
-    `http://localhost:8080/api/books/${bookId}/readers`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        userIds: selectedReaderIds.value
-      })
-    }
-  )
-
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || 'Book created, but failed to save readers')
-  }
+  const response = await saveBookReaders(bookId, token, selectedReaderIds.value)
 }
 
-const createBook = async () => {
+const toCreateBook = async () => {
   await formRef.value.validate()
 
   const token = localStorage.getItem('token')
@@ -140,36 +114,17 @@ const createBook = async () => {
   try {
     loading.value = true
 
-    const response = await fetch('http://localhost:8080/api/books', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        title: form.title,
-        description: form.description,
-        coverUrl: form.coverUrl,
-        status: form.status,
-        permission: form.permission
-      })
-    })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(message || 'Failed to create book')
-    }
-
-    const savedBook = await response.json()
+    const savedBook = await createBook(form, token)
 
     if (form.permission === 'protected') {
-      await saveBookReaders(savedBook.id, token)
+      await saveBookReaders(savedBook.id, token, selectedReaderIds.value)
     }
 
     ElMessage.success('Book created successfully')
     router.push('/dashboard')
-  } catch (error) {
-    ElMessage.error(error.message)
+  } catch (error: any) {
+    console.error(error)
+    ElMessage.error(error.message || 'Failed to create book')
   } finally {
     loading.value = false
   }
@@ -280,7 +235,7 @@ const cancel = () => {
           <el-button
             class="gold-button"
             :loading="loading"
-            @click="createBook"
+            @click="toCreateBook"
           >
             Create Book
           </el-button>

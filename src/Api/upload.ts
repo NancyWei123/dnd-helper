@@ -6,7 +6,7 @@ export const uploadImage = async (file: File) => {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch('http://localhost:8080/api/upload/image', {
+  const response = await fetch(`${API_BASE_URL}/upload/image`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`
@@ -29,7 +29,7 @@ export const uploadMusic = async (file: File) => {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch('http://localhost:8080/api/upload/music', {
+  const response = await fetch(`${API_BASE_URL}/upload/music`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`

@@ -9,6 +9,7 @@ import {
   getChapterById,
   type ChapterResponse
 } from '@/Api/chapter'
+import { getPlayableMusicUrl } from '@/Api/file'
 
 const route = useRoute()
 
@@ -24,23 +25,7 @@ const audioRef = ref<HTMLAudioElement | null>(null)
 const isPlaying = ref(false)
 
 const getPlayableMusicUrl = (url: string) => {
-  if (!url) return ''
-
-  const trimmedUrl = url.trim()
-
-  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
-    return trimmedUrl
-  }
-
-  if (trimmedUrl.startsWith('/uploads')) {
-    return `http://localhost:8080${trimmedUrl}`
-  }
-
-  if (trimmedUrl.startsWith('/music')) {
-    return `${window.location.origin}${trimmedUrl}`
-  }
-
-  return trimmedUrl
+  return getPlayableMusicUrl(url)
 }
 
 const loadChapters = async () => {

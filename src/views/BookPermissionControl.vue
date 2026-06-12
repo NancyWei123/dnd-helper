@@ -124,6 +124,7 @@
 
 <script setup>
 import { computed, ref, watch, onMounted } from "vue";
+import { fetchUsers } from "@/Api/user";
 
 const props = defineProps({
   modelValue: {
@@ -148,64 +149,63 @@ const emit = defineEmits([
 const permission = ref(props.modelValue);
 const selectedReaderIds = ref([...props.selectedReaders]);
 const searchText = ref("");
-
-// Add this local users list
 const localUsers = ref([]);
 
 onMounted(() => {
-  fetchUsers();
+  initFetchUsers();
 });
 
-async function fetchUsers() {
+async function initFetchUsers() {
   try {
-    const token = localStorage.getItem("token");
-
-    const response = await fetch("http://localhost:8080/api/users/all", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch users");
-    }
-
-    localUsers.value = await response.json();
+    // If your fetchUsers already gets token from localStorage,
+    // do not pass token here.
+    const users = await fetchUsers();
+    localUsers.value = Array.isArray(users) ? users : [];
   } catch (error) {
     console.error("Failed to load users:", error);
   }
 }
 
-// Use parent users if provided, otherwise use local fetched users
 const displayUsers = computed(() => {
   return props.users.length > 0 ? props.users : localUsers.value;
 });
 
-watch(permission, (newValue) => {
-  emit("update:modelValue", newValue);
+function sameArray(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
-  if (newValue !== "protected") {
+watch(permission, (newValue) => {
+  if (newValue !== props.modelValue) {
+    emit("update:modelValue", newValue);
+  }
+
+  if (newValue !== "protected" && selectedReaderIds.value.length > 0) {
     selectedReaderIds.value = [];
     emit("update:selectedReaders", []);
   }
 });
 
 watch(selectedReaderIds, (newValue) => {
-  emit("update:selectedReaders", newValue);
+  if (!sameArray(newValue, props.selectedReaders)) {
+    emit("update:selectedReaders", [...newValue]);
+  }
 });
 
 watch(
   () => props.modelValue,
   (newValue) => {
-    permission.value = newValue;
+    if (newValue !== permission.value) {
+      permission.value = newValue;
+    }
   }
 );
 
 watch(
   () => props.selectedReaders,
   (newValue) => {
-    selectedReaderIds.value = [...newValue];
+    if (!sameArray(newValue, selectedReaderIds.value)) {
+      selectedReaderIds.value = [...newValue];
+    }
   }
 );
 

@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { getAllBooks, type BookResponse } from "@/Api/book";
+import { getCoverUrl } from "@/Api/file";
 
 type BookStatus = "DRAFT" | "PUBLISHED";
 
@@ -24,23 +25,8 @@ const openSettings = (book: Book) => {
   router.push(`/books/${book.id}/settings`)
 };
 
-const getCoverUrl = (coverUrl?: string) => {
-  if (!coverUrl) return "";
-
-  // blob URL is only a temporary browser preview, cannot be used after refresh
-  if (coverUrl.startsWith("blob:")) return "";
-
-  // full backend or external URL
-  if (coverUrl.startsWith("http://") || coverUrl.startsWith("https://")) {
-    return coverUrl;
-  }
-
-  // backend relative upload URL, for example: /uploads/covers/xxx.png
-  if (coverUrl.startsWith("/uploads")) {
-    return `http://localhost:8080${coverUrl}`;
-  }
-
-  return coverUrl;
+const toGetCoverUrl = (coverUrl?: string) => {
+  return getCoverUrl(coverUrl);
 };
 
 const loadBooks = async () => {
@@ -115,8 +101,8 @@ const createBook = () => {
       >
         <div class="book-cover" @click="openBook(book)">
           <img
-            v-if="getCoverUrl(book.coverUrl)"
-            :src="getCoverUrl(book.coverUrl)"
+            v-if="toGetCoverUrl(book.coverUrl)"
+            :src="toGetCoverUrl(book.coverUrl)"
             :alt="book.title"
             @error="book.coverUrl = ''"
           />

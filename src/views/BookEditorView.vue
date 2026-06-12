@@ -13,6 +13,7 @@ import {
   deleteChapter,
   type ChapterResponse
 } from '@/Api/chapter'
+import {fetchUsers} from '@/Api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,29 +62,11 @@ const loadChapters = async () => {
 }
 
 const fetchUsers = async () => {
-  const token = localStorage.getItem('token')
-
-  if (!token) {
-    return
-  }
-
   try {
-    const response = await fetch('http://localhost:8080/api/users/all', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(message || 'Failed to load users')
-    }
-
-    users.value = await response.json()
-  } catch (error: any) {
+    users.value = await fetchUsers()
+  } catch (error) {
     console.error(error)
-    ElMessage.error(error.message || 'Failed to load users')
+    ElMessage.error('Failed to load users for notification')
   }
 }
 
@@ -312,11 +295,6 @@ const sendChapterNotification = async () => {
         userIds: selectedNotifyUserIds.value
       })
     })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(message || 'Failed to send notification')
-    }
 
     ElMessage.success('Notification sent')
     notifyDialogVisible.value = false

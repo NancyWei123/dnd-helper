@@ -4,6 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { uploadCover } from '@/Api/upload'
+import { getBookById, deleteBookById,fetchBookReaders,updateBook } from '@/Api/book'
+import { fetchUsers } from '@/Api/user'
+import { getCoverUrl } from '@/Api/file'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,17 +70,7 @@ const deleteBook = async () => {
       }
     )
 
-    const response = await fetch(`http://localhost:8080/api/books/${bookId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(message || 'Failed to delete book')
-    }
+    const response = await deleteBookById(bookId, token);
 
     ElMessage.success('Book deleted')
     router.push('/dashboard')
@@ -92,19 +85,7 @@ const deleteBook = async () => {
 }
 
 const getCoverUrl = (url: string) => {
-  if (!url) return ''
-
-  if (url.startsWith('blob:')) return ''
-
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-
-  if (url.startsWith('/uploads')) {
-    return `http://localhost:8080${url}`
-  }
-
-  return url
+  return getCoverUrl(url)
 }
 
 const fetchBook = async () => {
@@ -116,42 +97,28 @@ const fetchBook = async () => {
     return
   }
 
-  const response = await fetch(`http://localhost:8080/api/books/${bookId}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  })
+  try {
+    const book = await getBookById(bookId, token)
 
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || 'Failed to load book')
+    form.title = book.title || ''
+    form.description = book.description || ''
+    form.coverUrl = book.coverUrl || ''
+    form.permission = book.permission || 'private'
+    form.status = book.status || 'DRAFT'
+  } catch (error: any) {
+    console.error(error)
+    ElMessage.error(error.message || 'Failed to load book')
   }
-
-  const book = await response.json()
-  form.title = book.title || ''
-  form.description = book.description || ''
-  form.coverUrl = book.coverUrl || ''
-  form.permission = book.permission || 'private'
-  form.status = book.status || 'DRAFT'
 }
 
 const fetchUsers = async () => {
   const token = localStorage.getItem('token')
   if (!token) return
 
-  const response = await fetch('http://localhost:8080/api/users/all', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  })
-
+  const response = await fetchUsers(token)
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || 'Failed to load users')
+    throw new Error('Failed to load users')
   }
-
   users.value = await response.json()
 }
 
@@ -159,12 +126,7 @@ const fetchBookReaders = async () => {
   const token = localStorage.getItem('token')
   if (!token) return
 
-  const response = await fetch(`http://localhost:8080/api/books/${bookId}/readers`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  })
+  const response = await fetchBookReaders(bookId, token);
 
   if (!response.ok) {
     // If your backend does not have GET readers yet, this will not break page loading.
@@ -240,21 +202,7 @@ const removeCover = () => {
 }
 
 const saveReaders = async (token: string) => {
-  const response = await fetch(`http://localhost:8080/api/books/${bookId}/readers`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      userIds: form.permission === 'protected' ? selectedReaderIds.value : []
-    })
-  })
-
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || 'Failed to save readers')
-  }
+  const response = await saveBookReaders(bookId, selectedReaderIds.value, token);
 }
 
 const saveSettings = async () => {
@@ -286,26 +234,7 @@ const saveSettings = async () => {
     selectedReaderIds: selectedReaderIds.value
   })
   try {
-    const response = await fetch(`http://localhost:8080/api/books/${bookId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        title: form.title,
-        description: form.description,
-        coverUrl: form.coverUrl,
-        permission: form.permission,
-        status: form.status
-      })
-    })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(message || 'Failed to save book settings')
-    }
-
+    const response = await updateBook(bookId, form, token);
     await saveReaders(token)
 
     ElMessage.success('Book settings saved')
