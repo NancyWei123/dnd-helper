@@ -13,7 +13,7 @@ import {
   deleteChapter,
   type ChapterResponse
 } from '@/Api/chapter'
-import {fetchUsers} from '@/Api/user'
+import {fetchUsers,sendNotifications} from '@/Api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -283,19 +283,14 @@ const sendChapterNotification = async () => {
   notifying.value = true
 
   try {
-    const response = await fetch('http://localhost:8080/api/notifications/chapter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        bookId: Number(bookId),
-        chapterId: createdChapterForNotify.value.id,
-        userIds: selectedNotifyUserIds.value
-      })
+    const response = await sendNotifications({
+      bookId: Number(bookId),
+      chapterId: createdChapterForNotify.value.id,
+      userIds: selectedNotifyUserIds.value
     })
-
+    if(!response.ok) {
+      throw new Error(errorData.message || 'Failed to send notification')
+    }
     ElMessage.success('Notification sent')
     notifyDialogVisible.value = false
     selectedNotifyUserIds.value = []

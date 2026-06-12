@@ -27,6 +27,11 @@ export interface RegisterResponse {
   email: string;
   username: string;
 }
+export interface SentNotificationRequest {
+  bookId: number;
+  chapterId: number;
+  userIds: number[];
+}
 export const changeEmail = async (newEmail: string) => {
   const token = localStorage.getItem('token')
 
@@ -126,6 +131,18 @@ export const sendVerificationCode = async (email: string) => {
     ...data
   }
 }
+export async function sendNotifications (data: SentNotificationRequest) {
+  const token = localStorage.getItem('token')
+  console.log('Sending notifications with data:', data)
+  const response = await axios.post(`${BASE_URL}/users/notifications`, data,{
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    })
+  return response.data;
+}
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   const response = await axios.post<LoginResponse>(
@@ -135,6 +152,7 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 
   return response.data;
 }
+
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   const response = await axios.post<RegisterResponse>(
     `${BASE_URL}/users/register`,
