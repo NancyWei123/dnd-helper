@@ -61,7 +61,7 @@ const loadChapters = async () => {
   }
 }
 
-const fetchUsers = async () => {
+const toFetchUsers = async () => {
   try {
     users.value = await fetchUsers()
   } catch (error) {
@@ -377,7 +377,7 @@ const previewBook = () => {
 
 onMounted(() => {
   loadChapters()
-  fetchUsers()
+  toFetchUsers()
 })
 </script>
 
