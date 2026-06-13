@@ -76,7 +76,7 @@ export async function getAllBooks(): Promise<BookResponse[]> {
  */
 export async function getMyBooks(): Promise<BookResponse[]> {
   const response = await axios.get<BookResponse[]>(
-    `${BASE_URL}/books`,
+    `${BASE_URL}/books/my`,
     {
       headers: authHeaders(),
     }

@@ -27,7 +27,7 @@ const handleLogin = async () => {
     });
 
     localStorage.setItem("token", res.token);
-
+    localStorage.setItem("userId", res.userId);
     router.push("/dashboard");
   } catch (error: any) {
     if (error.response?.status === 401) {

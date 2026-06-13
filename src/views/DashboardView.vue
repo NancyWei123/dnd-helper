@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { getAllBooks, type BookResponse } from "@/Api/book";
+import { getAllBooks, getMyBooks, type BookResponse } from "@/Api/book";
 import { getCoverUrl } from "@/Api/file";
 
 type BookStatus = "DRAFT" | "PUBLISHED";
@@ -42,12 +42,32 @@ const loadBooks = async () => {
   }
 };
 
+const loadMyBooks = async () => {
+  loading.value = true;
+
+  try {
+    books.value = (await getMyBooks()) as Book[];
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("Failed to load books");
+  } finally {
+    loading.value = false;
+  }
+};
+
+const isOwner = (book: Book) => {
+  return String(book.userId) === localStorage.getItem("userId");
+};
+
 onMounted(() => {
   loadBooks();
 });
 
 const openBook = (book: Book) => {
-  if (book.status === "PUBLISHED") {
+  if (
+    book.status === "PUBLISHED" ||
+    String(book.userId) !== localStorage.getItem("userId")
+  ) {
     router.push(`/books/${book.id}/read`);
   } else {
     router.push(`/books/${book.id}/edit`);
@@ -68,10 +88,16 @@ const createBook = () => {
     <div class="page-header">
       <div>
         <p class="eyebrow">Guild Library</p>
-        <h1>My Spellbooks</h1>
+        <h1>DnD Adventures</h1>
         <p class="subtitle">
           Manage your fantasy books, drafts, chapters, and published adventures.
         </p>
+        <el-button class="fantasy-button primary" @click="loadBooks">
+          Library
+        </el-button>
+        <el-button class="fantasy-button primary" @click="loadMyBooks">
+          My books
+        </el-button>
       </div>
 
       <div class="button-group">
@@ -134,10 +160,10 @@ const createBook = () => {
           >
             Read
           </el-button>
-            <el-button class="fantasy-button small secondary" @click="editBook(book)">
+            <el-button v-if="isOwner(book)" class="fantasy-button small secondary" @click="editBook(book)">
               Edit
             </el-button>
-            <el-button class="fantasy-button small setting" @click="openSettings(book)">
+            <el-button v-if="isOwner(book)" class="fantasy-button small setting" @click="openSettings(book)">
               Setting
             </el-button>
           </div>

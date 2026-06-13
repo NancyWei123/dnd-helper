@@ -7,6 +7,7 @@ import { uploadCover } from '@/Api/upload'
 import { getBookById, deleteBookById,fetchBookReaders,updateBook } from '@/Api/book'
 import { fetchUsers } from '@/Api/user'
 import { getCoverUrl } from '@/Api/file'
+import { saveBookReaders } from '@/Api/book'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,9 +85,9 @@ const deleteBook = async () => {
   }
 }
 
-const getCoverUrl = (url: string) => {
-  return getCoverUrl(url)
-}
+// const toGetCoverUrl = (url: string) => {
+//   return getCoverUrl(url)
+// }
 
 const fetchBook = async () => {
   const token = localStorage.getItem('token')
@@ -111,18 +112,20 @@ const fetchBook = async () => {
   }
 }
 
-const fetchUsers = async () => {
+const toFetchUsers = async () => {
   const token = localStorage.getItem('token')
   if (!token) return
+  try {
+    const data = await fetchUsers(token)
+    console.log('Fetched users:', data)
 
-  const response = await fetchUsers(token)
-  if (!response.ok) {
-    throw new Error('Failed to load users')
+    users.value = data
+  } catch (error) {
+    console.error('Failed to load users:', error)
   }
-  users.value = await response.json()
 }
 
-const fetchBookReaders = async () => {
+const toFetchBookReaders = async () => {
   const token = localStorage.getItem('token')
   if (!token) return
 
@@ -145,8 +148,8 @@ const loadPage = async () => {
   try {
     await Promise.all([
       fetchBook(),
-      fetchUsers(),
-      fetchBookReaders()
+      toFetchUsers(),
+      toFetchBookReaders()
     ])
   } catch (error: any) {
     console.error(error)

@@ -99,7 +99,6 @@ export const getUser = async () => {
 
 export const fetchUsers = async () => {
   const token = localStorage.getItem('token')
-
   const response = await fetch(`${BASE_URL}/users/all`, {
     method: 'GET',
     headers: {
