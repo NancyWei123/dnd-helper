@@ -32,16 +32,19 @@ export interface SentNotificationRequest {
   chapterId: number;
   userIds: number[];
 }
-export const changeEmail = async (newEmail: string) => {
+export const changeEmail = async (
+  newEmail: string,
+  verificationCode: string
+) => {
   const token = localStorage.getItem('token')
 
-  const response = await fetch(`${BASE_URL}/email`, {
-    method: 'PUT',
+  const response = await fetch(`${BASE_URL}/users/change-email`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
     },
-    body: JSON.stringify({ newEmail })
+    body: JSON.stringify({ newEmail, verificationCode })
   })
 
   const data = await response.json().catch(() => ({}))
@@ -53,14 +56,41 @@ export const changeEmail = async (newEmail: string) => {
   return data
 }
 
+export const resetPassword = async (
+  verificationCode: string,
+  newPassword: string
+) => {
+  console.log('Resetting password with verificationCode:', verificationCode, 'and newPassword:', newPassword)
+  const token = localStorage.getItem('token')
+  const response = await fetch(`${BASE_URL}/users/forget-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      verificationCode,
+      newPassword
+    })
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to change password')
+  }
+
+  return data
+}
+
 export const changePassword = async (
   oldPassword: string,
   newPassword: string
 ) => {
   const token = localStorage.getItem('token')
 
-  const response = await fetch(`${BASE_URL}/password`, {
-    method: 'PUT',
+  const response = await fetch(`${BASE_URL}/users/password`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`

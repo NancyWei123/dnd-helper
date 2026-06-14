@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getUser, changeEmail, changePassword } from '@/Api/user'
+import {
+  getUser,
+  changeEmail,
+  changePassword,
+  sendVerificationCode,
+  resetPassword
+} from '@/Api/user'
 
 const router = useRouter()
 
@@ -12,12 +18,105 @@ const loading = ref(false)
 
 const emailDialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
+const forgetPasswordDialogVisible = ref(false)
 
-const newEmail = ref('')
+const sendCodeLoading = ref(false)
+const countdown1 = ref(0)
+const countdown2 = ref(0)
 
-const oldPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
+let timer: number | null = null
+
+const changeEmailForm = reactive({
+  newEmail: '',
+  verificationCode: ''
+})
+
+const changePasswordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const forgetPasswordForm = reactive({
+  verificationCode: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const isValidEmail = (value: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+const clearTimer = () => {
+  if (timer !== null) {
+    clearInterval(timer)
+    timer = null
+  }
+}
+
+const startCountdown1 = () => {
+  clearTimer()
+  countdown1.value = 60
+
+  timer = window.setInterval(() => {
+    countdown1.value--
+
+    if (countdown1.value <= 0) {
+      clearTimer()
+    }
+  }, 1000)
+}
+
+const startCountdown2 = () => {
+  clearTimer()
+  countdown2.value = 60
+
+  timer = window.setInterval(() => {
+    countdown2.value--
+
+    if (countdown2.value <= 0) {
+      clearTimer()
+    }
+  }, 1000)
+}
+
+const handleChangeEmailSendCode = async () => {
+  if (!changeEmailForm.newEmail || changeEmailForm.newEmail === 'No email') {
+    ElMessage.warning('No email found')
+    return
+  }
+  sendCodeLoading.value = true
+  try {
+    const response=await sendVerificationCode(changeEmailForm.newEmail)
+    if(response.ok){
+      ElMessage.success('Verification code sent')
+      startCountdown2()
+    } else {
+      ElMessage.error(response.message || 'Failed to send verification code')
+    }
+  }finally {
+    sendCodeLoading.value = false
+  }
+}
+
+const handleForgetPasswordSendCode = async () => {
+  if (!email.value || email.value === 'No email') {
+    ElMessage.warning('No email found')
+    return
+  }
+  sendCodeLoading.value = true
+  try {
+    const response=await sendVerificationCode(email.value)
+    if(response.ok){
+      ElMessage.success('Verification code sent')
+      startCountdown2()
+    } else {
+      ElMessage.error(response.message || 'Failed to send verification code')
+    }
+  }finally {
+    sendCodeLoading.value = false
+  }
+}
 
 const loadUser = async () => {
   loading.value = true
@@ -35,44 +134,108 @@ const loadUser = async () => {
 }
 
 const handleChangeEmail = async () => {
-  if (!newEmail.value) {
+  if (!changeEmailForm.newEmail) {
     ElMessage.warning('Please enter a new email')
     return
   }
 
-  try {
-    await changeEmail(newEmail.value)
+  if (!isValidEmail(changeEmailForm.newEmail)) {
+    ElMessage.warning('Please enter a valid email')
+    return
+  }
 
-    ElMessage.success('Email changed successfully')
-    email.value = newEmail.value
-    newEmail.value = ''
-    emailDialogVisible.value = false
+  try {
+    const response = await changeEmail(
+      changeEmailForm.newEmail,
+      changeEmailForm.verificationCode
+    )
+
+    if (response.ok) {
+      ElMessage.success('Email changed successfully')
+      email.value = changeEmailForm.newEmail
+      changeEmailForm.newEmail = ''
+      changeEmailForm.verificationCode = ''
+      emailDialogVisible.value = false
+    } else {
+      ElMessage.error(response.message || 'Failed to change email')
+    }
   } catch (error: any) {
     ElMessage.error(error.message || 'Failed to change email')
   }
 }
 
-const handleChangePassword = async () => {
-  if (!oldPassword.value || !newPassword.value || !confirmPassword.value) {
-    ElMessage.warning('Please fill in all password fields')
+const handleForgetPassword = async () => {
+  if (!email.value || email.value === 'No email') {
+    ElMessage.warning('No email found')
     return
   }
 
-  if (newPassword.value !== confirmPassword.value) {
+  if (!isValidEmail(email.value)) {
+    ElMessage.warning('Please enter a valid email')
+    return
+  }
+
+  if (!forgetPasswordForm.verificationCode) {
+    ElMessage.warning('Please enter verification code')
+    return
+  }
+
+  if (!forgetPasswordForm.newPassword || !forgetPasswordForm.confirmPassword) {
+    ElMessage.warning('Please enter new password')
+    return
+  }
+
+  if (forgetPasswordForm.newPassword !== forgetPasswordForm.confirmPassword) {
     ElMessage.error('New passwords do not match')
     return
   }
 
   try {
-    await changePassword(oldPassword.value, newPassword.value)
+    await resetPassword(
+      forgetPasswordForm.verificationCode,
+      forgetPasswordForm.newPassword
+    )
 
+    ElMessage.success('Password reset successfully')
+
+    forgetPasswordForm.verificationCode = ''
+    forgetPasswordForm.newPassword = ''
+    forgetPasswordForm.confirmPassword = ''
+    forgetPasswordDialogVisible.value = false
+  } catch (error: any) {
+    ElMessage.error(error.message || 'Failed to reset password')
+  }
+}
+
+const handleChangePassword = async () => {
+  if (
+    !changePasswordForm.oldPassword ||
+    !changePasswordForm.newPassword ||
+    !changePasswordForm.confirmPassword
+  ) {
+    ElMessage.warning('Please fill in all password fields')
+    return
+  }
+
+  if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
+    ElMessage.error('New passwords do not match')
+    return
+  }
+
+  try {
+    const response = await changePassword(
+      changePasswordForm.oldPassword,
+      changePasswordForm.newPassword
+    )
+    if(!response.ok){
+      throw new Error(response.message || 'Failed to change password')
+    }
     ElMessage.success('Password changed successfully. Please login again.')
+    changePasswordForm.oldPassword = ''
+    changePasswordForm.newPassword = ''
+    changePasswordForm.confirmPassword = ''
 
-    oldPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
     passwordDialogVisible.value = false
-
     localStorage.removeItem('token')
     router.push('/login')
   } catch (error: any) {
@@ -89,6 +252,10 @@ const logout = () => {
 onMounted(() => {
   loadUser()
 })
+
+onUnmounted(() => {
+  clearTimer()
+})
 </script>
 
 <template>
@@ -101,7 +268,7 @@ onMounted(() => {
       <p class="eyebrow">Adventurer Profile</p>
       <h1>User Center</h1>
 
-      <div class="info-box">
+      <div v-loading="loading" class="info-box">
         <div class="info-row">
           <span class="label">Username</span>
           <span class="value">{{ username }}</span>
@@ -117,14 +284,15 @@ onMounted(() => {
         <el-button class="fantasy-button secondary" @click="passwordDialogVisible = true">
           Change Password
         </el-button>
+
         <el-button class="fantasy-button secondary" @click="emailDialogVisible = true">
           Change Email
         </el-button>
       </div>
 
       <div class="actions second-row">
-        <el-button class="fantasy-button" @click="router.push('/books')">
-          My Books
+        <el-button class="fantasy-button secondary" @click="forgetPasswordDialogVisible = true">
+          Forget Password
         </el-button>
 
         <el-button class="fantasy-button danger" @click="logout">
@@ -134,16 +302,95 @@ onMounted(() => {
     </div>
 
     <el-dialog
+      v-model="forgetPasswordDialogVisible"
+      title="Forget Password"
+      width="420px"
+      class="fantasy-dialog"
+    >
+      <el-form label-position="top">
+        <el-form-item label="Email">
+          <div class="email-row">
+            <span class="email-text">
+              {{ email }}
+            </span>
+
+            <el-button
+              class="send-code-button"
+              :loading="sendCodeLoading"
+              :disabled="countdown2.value > 0"
+              @click="handleForgetPasswordSendCode"
+            >
+              {{ countdown2.value > 0 ? `${countdown2.value}s` : 'Send Code' }}
+            </el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="Verification Code">
+          <el-input
+            v-model="forgetPasswordForm.verificationCode"
+            placeholder="Enter verification code"
+            size="large"
+          />
+        </el-form-item>
+
+        <el-form-item label="New Password">
+          <el-input
+            v-model="forgetPasswordForm.newPassword"
+            type="password"
+            show-password
+            placeholder="Enter new password"
+            size="large"
+          />
+        </el-form-item>
+
+        <el-form-item label="Confirm New Password">
+          <el-input
+            v-model="forgetPasswordForm.confirmPassword"
+            type="password"
+            show-password
+            placeholder="Confirm new password"
+            size="large"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="forgetPasswordDialogVisible = false">
+          Cancel
+        </el-button>
+
+        <el-button type="primary" @click="handleForgetPassword">
+          Save
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="emailDialogVisible"
       title="Change Email"
       width="420px"
       class="fantasy-dialog"
     >
       <el-form label-position="top">
-        <el-form-item label="New Email">
-          <el-input
-            v-model="newEmail"
+        <div class="email-row">
+            <el-input
+            v-model="changeEmailForm.newEmail"
             placeholder="Enter new email"
+            size="large"
+          />
+            <el-button
+              class="send-code-button"
+              :loading="sendCodeLoading"
+              :disabled="countdown1.value > 0"
+              @click="handleChangeEmailSendCode"
+            >
+              {{ countdown1.value > 0 ? `${countdown1.value}s` : 'Send Code' }}
+            </el-button>
+          </div>
+        <el-form-item label="Verification Code">
+          <el-input
+            v-model="changeEmailForm.verificationCode"
+            placeholder="Enter verification code"
             size="large"
           />
         </el-form-item>
@@ -153,6 +400,7 @@ onMounted(() => {
         <el-button @click="emailDialogVisible = false">
           Cancel
         </el-button>
+
         <el-button type="primary" @click="handleChangeEmail">
           Save
         </el-button>
@@ -168,7 +416,7 @@ onMounted(() => {
       <el-form label-position="top">
         <el-form-item label="Old Password">
           <el-input
-            v-model="oldPassword"
+            v-model="changePasswordForm.oldPassword"
             type="password"
             show-password
             placeholder="Enter old password"
@@ -178,7 +426,7 @@ onMounted(() => {
 
         <el-form-item label="New Password">
           <el-input
-            v-model="newPassword"
+            v-model="changePasswordForm.newPassword"
             type="password"
             show-password
             placeholder="Enter new password"
@@ -188,7 +436,7 @@ onMounted(() => {
 
         <el-form-item label="Confirm New Password">
           <el-input
-            v-model="confirmPassword"
+            v-model="changePasswordForm.confirmPassword"
             type="password"
             show-password
             placeholder="Confirm new password"
@@ -201,6 +449,7 @@ onMounted(() => {
         <el-button @click="passwordDialogVisible = false">
           Cancel
         </el-button>
+
         <el-button type="primary" @click="handleChangePassword">
           Save
         </el-button>
@@ -334,6 +583,30 @@ h1 {
   border: 1px solid rgba(214, 168, 79, 0.32);
 }
 
+.email-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.email-text {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  color: #f8ead0;
+  background: rgba(15, 10, 7, 0.72);
+  border: 1px solid rgba(214, 168, 79, 0.32);
+  word-break: break-all;
+}
+
+.send-code-button {
+  white-space: nowrap;
+}
+
 :deep(.el-dialog) {
   border-radius: 24px;
   background: #2a1c16;
@@ -378,6 +651,11 @@ h1 {
 
   .info-row {
     flex-direction: column;
+  }
+
+  .email-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>
